@@ -1,0 +1,15 @@
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+
+# Local secrets
+.env
+.env.local
+*.local
+
+# Build artifacts (per subproject already ignored)
+dist/
+build/

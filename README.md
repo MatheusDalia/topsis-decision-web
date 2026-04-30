@@ -1,0 +1,164 @@
+# TOPSIS Web — Sistema de Apoio à Decisão Multicritério
+
+Aplicação web que implementa o método **TOPSIS** (*Technique for Order
+Preference by Similarity to Ideal Solution*) para tomada de decisão
+multicritério, permitindo que usuários comuns resolvam problemas de
+decisão sem conhecimento técnico do método.
+
+> Projeto da disciplina **Sistemas de Apoio à Decisão** — Fase 2
+> (Semanas 11–15). Implementação e extensão de artigo científico de
+> MCDM/MCDA.
+
+## Artigo base
+
+**Chen, C.T. (2000).** Extensions of the TOPSIS for group
+decision-making under fuzzy environment. *Fuzzy Sets and Systems*,
+114(1), 1–9.
+[https://doi.org/10.1016/S0165-0114(97)00377-1](https://doi.org/10.1016/S0165-0114(97)00377-1)
+
+Artigos complementares:
+- Hwang, C.L. & Yoon, K. (1981). *Multiple Attribute Decision Making*. Springer.
+- Hwang, C.L., Lai, Y.J. & Liu, T.Y. (1993). A new approach for multiple
+  objective decision making. *Computers & OR*, 20(8), 889–899.
+- Nădăban, S., Dzitac, S. & Dzitac, I. (2016). Fuzzy TOPSIS: A general view.
+  *Procedia Computer Science*, 91, 823–831.
+
+---
+
+## 🌐 Demo
+
+| Recurso | URL |
+|---|---|
+| Aplicação | _(adicionar após deploy)_ |
+| API (Swagger) | _(adicionar após deploy)_ + `/docs` |
+
+---
+
+## ✨ Funcionalidades
+
+- ✅ Cadastro dinâmico de **alternativas** e **critérios**
+- ✅ Suporte a critérios de **benefício** e **custo**
+- ✅ Três métodos de **normalização** (vetorial, linear, min-max)
+- ✅ Cálculo do **ranking** com coeficiente de proximidade `CCi`
+- ✅ Visualização com **gráficos** (Recharts)
+- ✅ **Exportação CSV** dos resultados
+- ✅ API REST documentada com **OpenAPI/Swagger**
+
+---
+
+## 🏗️ Arquitetura
+
+```
+topsis-decision-web/
+├── backend/          # FastAPI + uv (Python 3.11)
+│   ├── app/
+│   │   ├── topsis.py    # algoritmo TOPSIS (numpy)
+│   │   ├── schemas.py   # Pydantic
+│   │   └── main.py      # endpoints REST
+│   └── tests/
+└── frontend/         # Next.js 16 + React 19 + TailwindCSS
+    └── src/app/
+        ├── page.tsx       # landing
+        ├── about/         # sobre o método
+        ├── decision/      # formulário interativo
+        └── result/        # ranking + gráficos
+```
+
+### Stack técnico
+
+| Camada | Tecnologia |
+|---|---|
+| Frontend | Next.js 16, React 19, TailwindCSS, Recharts |
+| Backend | FastAPI, Pydantic, NumPy |
+| Build | uv (Python), npm (Node 20+) |
+| Deploy frontend | Vercel |
+| Deploy backend | Railway / Render |
+
+---
+
+## 🚀 Como rodar localmente
+
+### Pré-requisitos
+
+- Python 3.11+ com [uv](https://docs.astral.sh/uv/) instalado
+- Node.js 20.9+ (recomendado: nvm com Node 20)
+
+### Backend
+
+```bash
+cd backend
+uv sync
+uv run uvicorn app.main:app --reload
+```
+
+API disponível em `http://localhost:8000`. Documentação Swagger em
+`http://localhost:8000/docs`.
+
+### Frontend
+
+```bash
+cd frontend
+nvm use 20            # se usar nvm
+cp .env.local.example .env.local
+npm install
+npm run dev
+```
+
+App disponível em `http://localhost:3000`.
+
+### Testes
+
+```bash
+cd backend
+uv run pytest tests/ -v
+```
+
+---
+
+## 📋 Como usar
+
+1. Acesse a página inicial e clique em **"Iniciar uma decisão"**.
+2. Cadastre os **critérios** (nome, peso, benefício/custo).
+3. Cadastre as **alternativas** com seus valores.
+4. (Opcional) Escolha o método de normalização.
+5. Clique em **"Calcular ranking"** para ver os resultados.
+6. Exporte o ranking em **CSV** para uso externo.
+
+---
+
+## 🧪 Validação científica
+
+A implementação foi validada contra o exemplo da Seção 4 do artigo de
+**Chen (2000)** — seleção de candidato para vaga de Analista de Sistemas
+com 5 critérios e 3 candidatos. Resultado esperado: **A2 ≻ A3 ≻ A1**,
+reproduzido com sucesso pelo backend (ver `tests/test_topsis.py`).
+
+---
+
+## 📦 Deploy
+
+### Frontend (Vercel)
+```bash
+cd frontend
+npx vercel
+```
+Configurar variável: `NEXT_PUBLIC_API_URL = <URL pública do backend>`.
+
+### Backend (Railway)
+1. Push do código para GitHub.
+2. Em Railway: "New Project" → "Deploy from GitHub repo" → selecionar
+   `backend/` como root.
+3. `railway.json` já configurado.
+
+### Backend (Render)
+- Configuração em `render.yaml` — basta apontar para o repo.
+
+---
+
+## 👥 Equipe
+
+- _(adicionar nomes)_
+
+## 📄 Licença
+
+Uso acadêmico — disciplina de Sistemas de Apoio à Decisão.
