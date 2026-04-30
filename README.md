@@ -29,8 +29,9 @@ Artigos complementares:
 
 | Recurso | URL |
 |---|---|
-| Aplicação | _(adicionar após deploy)_ |
-| API (Swagger) | _(adicionar após deploy)_ + `/docs` |
+| Repositório | https://github.com/MatheusDalia/topsis-decision-web |
+| Aplicação (Vercel) | _(adicionar após deploy)_ |
+| API (Railway) | _(adicionar após deploy)_ — Swagger em `/docs` |
 
 ---
 
@@ -144,20 +145,30 @@ npx vercel
 ```
 Configurar variável: `NEXT_PUBLIC_API_URL = <URL pública do backend>`.
 
-### Backend (Railway)
-1. Push do código para GitHub.
-2. Em Railway: "New Project" → "Deploy from GitHub repo" → selecionar
-   `backend/` como root.
-3. `railway.json` já configurado.
+### Backend (Railway) — host escolhido
+1. Push para GitHub (já feito).
+2. railway.com → **New Project** → **Deploy from GitHub repo** →
+   selecionar `MatheusDalia/topsis-decision-web`.
+3. Em **Settings** do serviço:
+   - **Root Directory:** `backend`
+   - **Watch Paths:** `backend/**`
+4. `railway.json` já configura: build via Nixpacks, start command,
+   healthcheck em `/health`.
+5. **Generate Domain** em Settings → Networking → copiar URL.
+6. (Opcional) Adicionar variável `PYTHON_VERSION=3.11.9` se Nixpacks
+   não detectar automaticamente.
 
-### Backend (Render)
-- Configuração em `render.yaml` — basta apontar para o repo.
+### Backend (alternativa: Render)
+Configuração de fallback em `render.yaml` — basta apontar para o repo.
 
 ---
 
 ## 👥 Equipe
 
-- _(adicionar nomes)_
+- Matheus Dalia
+- José Luiz da Silva Neto
+- Júlia Nunes
+- Mayara Gomes
 
 ## 📄 Licença
 

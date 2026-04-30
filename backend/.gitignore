@@ -14,3 +14,5 @@ wheels/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
+
+# uv lockfile is committed for reproducible deploys; don't ignore it
