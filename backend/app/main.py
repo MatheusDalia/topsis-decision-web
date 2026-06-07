@@ -12,43 +12,54 @@ from app.schemas import RankedAlternative, TopsisRequest, TopsisResponse
 from app.topsis import topsis
 
 app = FastAPI(
-    title="TOPSIS Decision Support API",
+    title="TOPSIS Decision Web - API Support ",
     description=(
         "REST API implementing the classical TOPSIS algorithm "
         "(Hwang & Yoon, 1981; Chen, 2000). "
-        "Built for the Sistemas de Apoio à Decisão coursework, "
-        "Fase 2 — Project."
+        "Built for SAD, "
+        "Project."
     ),
     version="0.1.0",
 )
 
+#confirguração de CORS para permitir requisições do frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:3000"],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-
+#monitoramento de saúde da do backend
 @app.get("/health", tags=["meta"])
 def health() -> dict[str, str]:
     return {"status": "ok"}
 
-
+#solução do problema de decisão usando TOPSIS, retornando resposta estruturada para o usuário, e tratamento de erros caso a entrada seja inválida
 def _solve(req: TopsisRequest) -> TopsisResponse:
     matrix = [a.values for a in req.alternatives]
     weights = [c.weight for c in req.criteria]
     types = [c.type for c in req.criteria]
+
+    #validação dos pesos para garantir que somam 1.0
+    total = sum(weights)
+    if not (0.99 <= total <= 1.01):
+        raise HTTPException(
+            status_code=422,
+            detail=f"Os pesos devem somar 1.0. Soma atual: {total:.4f}"
+        )
 
     try:
         result = topsis(matrix, weights, types, normalization=req.normalization)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
 
+    #nomes das alternativas e critérios para incluir no resultado
     alt_names = [a.name for a in req.alternatives]
     crit_names = [c.name for c in req.criteria]
 
+    #ranking das alternativas com base nos resultados do TOPSIS, incluindo informações de proximidade e distância para os ideais
     ranked = [
         RankedAlternative(
             rank=position + 1,
@@ -60,6 +71,7 @@ def _solve(req: TopsisRequest) -> TopsisResponse:
         for position, idx in enumerate(result.ranking)
     ]
 
+    #construindo a resposta final com o ranking e os detalhes do cálculo para o frontend consumir e exibir ao usuário na página de Resultado
     return TopsisResponse(
         ranking=ranked,
         pis=result.pis,
@@ -70,14 +82,13 @@ def _solve(req: TopsisRequest) -> TopsisResponse:
         alternative_names=alt_names,
     )
 
-
+#endpoint que recebe a requisição do frontend com os dados da matriz de decisão, pesos e tipos dos critérios, e retorna o resultado completo
 @app.post("/api/v1/topsis", response_model=TopsisResponse, tags=["topsis"])
 def run_topsis(req: TopsisRequest) -> TopsisResponse:
     """Run TOPSIS on the provided decision matrix and return full results."""
     return _solve(req)
 
-
-@app.post("/api/v1/topsis/export.csv", tags=["topsis"])
+#endpoint que exporta o ranking das alternativas como um arquivo CSV, permitindo que o usuário baixe os resultados
 def export_csv(req: TopsisRequest) -> StreamingResponse:
     """Run TOPSIS and stream the ranking as CSV."""
     response = _solve(req)
