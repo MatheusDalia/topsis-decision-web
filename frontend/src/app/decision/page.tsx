@@ -320,6 +320,9 @@ export default function DecisionPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+const totalWeight = criteria.reduce((sum, c) => sum + (c.weight || 0), 0);
+const weightOk = totalWeight >= 0.99 && totalWeight <= 1.01;
+
   const addCriterion = () => {
     setCriteria([
       ...criteria,
@@ -487,6 +490,44 @@ export default function DecisionPage() {
               </div>
             ))}
           </div>
+          {/* ── INDICADOR DE SOMA DOS PESOS ── */}
+          <div className={`mt-4 flex items-center justify-between px-4 py-3 rounded-lg border ${
+            weightOk
+              ? "bg-green-50 border-green-200"
+              : "bg-red-50 border-red-200"
+          }`}>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={`text-xs font-bold uppercase tracking-wider ${
+                weightOk ? "text-green-700" : "text-red-700"
+              }`}>
+                Soma dos pesos
+              </span>
+              <div className="flex items-center gap-1 text-xs text-gray-500">
+                {criteria.map((c, i) => (
+                  <span key={i}>
+                    <span className="font-mono">{(c.weight || 0).toFixed(2)}</span>
+                    {i < criteria.length - 1 && (
+                      <span className="mx-1 text-gray-300">+</span>
+                    )}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`font-mono font-black text-base ${
+                weightOk ? "text-green-700" : "text-red-700"
+              }`}>
+                = {totalWeight.toFixed(2)}
+              </span>
+              <span className="text-lg">{weightOk ? "✅" : "⚠️"}</span>
+            </div>
+          </div>
+
+          {!weightOk && (
+            <p className="mt-2 text-xs text-red-600 px-1">
+              Os pesos devem somar exatamente 1.00. Ajuste os valores acima antes de calcular.
+            </p>
+          )}
         </div>
 
         {/* ── ALTERNATIVAS ── */}
@@ -590,11 +631,16 @@ export default function DecisionPage() {
         )}
 
         {/* ── AÇÃO ── */}
-        <div className="flex justify-end pb-4">
+        <div className="flex flex-col items-end gap-2 pb-4">
+          {!weightOk && (
+            <p className="text-xs text-red-500">
+              Ajuste os pesos para somar 1.00 antes de calcular.
+            </p>
+          )}
           <button
-            disabled={loading}
+            disabled={loading || !weightOk}
             onClick={handleRun}
-            className="bg-[#DB1E2F] hover:bg-[#AF0421] disabled:opacity-50 text-white font-bold text-sm px-8 py-4 rounded-lg transition"
+            className="bg-[#DB1E2F] hover:bg-[#AF0421] disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-sm px-8 py-4 rounded-lg transition"
           >
             {loading ? "Calculando..." : "Calcular ranking →"}
           </button>
@@ -614,3 +660,4 @@ export default function DecisionPage() {
     </main>
   );
 }
+//////////////
