@@ -42,14 +42,6 @@ def _solve(req: TopsisRequest) -> TopsisResponse:
     weights = [c.weight for c in req.criteria]
     types = [c.type for c in req.criteria]
 
-    #validação dos pesos para garantir que somam 1.0
-    total = sum(weights)
-    if not (0.99 <= total <= 1.01):
-        raise HTTPException(
-            status_code=422,
-            detail=f"Os pesos devem somar 1.0. Soma atual: {total:.4f}"
-        )
-
     try:
         result = topsis(matrix, weights, types, normalization=req.normalization)
     except ValueError as e:
