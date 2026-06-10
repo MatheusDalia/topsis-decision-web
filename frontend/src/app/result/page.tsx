@@ -259,6 +259,8 @@ type CriterionKind = "benefit" | "cost";
 const PALETTE = {
   brand: "#DB1E2F",
   brandDark: "#AF0421",
+  pis: "#378ADD",
+  nis: "#D85A30",
   criteria: [
     "#7F1D1D",
     "#991B1B",
@@ -270,8 +272,8 @@ const PALETTE = {
     "#FECACA",
   ],
   rankGradient: ["#7F1D1D", "#991B1B", "#B91C1C", "#DC2626", "#EF4444", "#F87171", "#FCA5A5"],
-  dPlus: "#B91C1C",
-  dMinus: "#F87171",
+  dPlus: "#378ADD",
+  dMinus: "#D85A30",
   gridLine: "#F1F5F9",
   axisText: "#64748B",
   annotation: "#1E293B",
@@ -314,11 +316,10 @@ const heatColorscale: Plotly.ColorScale = [
 ];
 
 const PCA_CONTRAST_COLORS = {
-  alternatives: ["#EAB308", "#7C3AED", "#DC2626", "#16A34A", "#CA8A04", "#9333EA"],
-  toPis: "#16A34A",
-  toNis: "#DC2626",
-  pis: "#EAB308",
-  nis: "#7C3AED",
+  toPis: "#378ADD",
+  toNis: "#D85A30",
+  pis: "#378ADD",
+  nis: "#D85A30",
 } as const;
 
 function normalizeWeights(weights: number[]): number[] {
@@ -665,7 +666,7 @@ export default function ResultPage() {
       const changedIndex = simulatedOrder.findIndex((name, idx) => name !== originalOrder[idx]);
       const superior = simulatedOrder[changedIndex] ?? simulatedOrder[0] ?? "";
       const surpassed = originalOrder[changedIndex] ?? originalOrder[0] ?? "";
-      inversionMessage = `⚠ Inversao de ranking detectada: ${superior} supera ${surpassed} nesta configuracao`;
+      inversionMessage = `⚠ Inversão de ranking detectada: ${superior} supera ${surpassed} nesta configuração.`;
     }
 
     return { ranking, weighted, pis, nis, changed, inversionMessage };
@@ -703,6 +704,8 @@ export default function ResultPage() {
   const winnerMargin = metrics.length > 1 && winner ? winner.score - metrics[1].score : null;
 
   const scoreChartHeight = Math.max(280, metrics.length * 72);
+  const distanceChartHeight = Math.max(320, metrics.length * 56);
+  const spatialChartHeight = Math.max(360, metrics.length * 62);
   const heatmapHeight = Math.max(240, metrics.length * 80);
 
   const activeCriterionIndices = data.criteria_names
@@ -718,23 +721,24 @@ export default function ResultPage() {
       name: "d⁺ (distância ao ideal positivo)",
       x: metrics.map((item) => item.name),
       y: metrics.map((item) => item.dPlus),
-      marker: { color: PALETTE.dPlus },
+      marker: { color: PALETTE.brandDark },
+      hovertemplate: "%{x}<br>d⁺: %{y:.3f}<extra></extra>",
     },
     {
       type: "bar",
       name: "d⁻ (distância ao ideal negativo)",
       x: metrics.map((item) => item.name),
       y: metrics.map((item) => item.dMinus),
-      marker: { color: PALETTE.dMinus },
+      marker: { color: "#F87171" },
+      hovertemplate: "%{x}<br>d⁻: %{y:.3f}<extra></extra>",
     },
   ];
-  const distanceAnnotations = metrics.map((item) => ({
-    x: item.name,
-    y: Math.max(item.dPlus, item.dMinus) * 1.04,
-    text: item.score.toFixed(4),
-    showarrow: false,
-    font: { size: 11, color: PALETTE.axisText },
-  }));
+  const maxDistance = Math.max(
+    0,
+    ...metrics.flatMap((item) => [item.dPlus, item.dMinus]),
+  );
+  const distanceYAxisMax = Math.max(0.1, Math.ceil(maxDistance * 10) / 10);
+  const distanceDtick = distanceYAxisMax <= 0.5 ? 0.05 : 0.1;
 
   const scorePlotData = [
     {
@@ -743,15 +747,15 @@ export default function ResultPage() {
       x: [...metrics].reverse().map((item) => item.score),
       y: [...metrics].reverse().map((item) => `${item.rank}o - ${item.name}`),
       marker: { color: [...metrics].reverse().map((item) => item.color) },
-      text: [...metrics].reverse().map((item) => item.score.toFixed(4)),
+      text: [...metrics].reverse().map((item) => item.score.toFixed(3)),
       textposition: "outside",
       textfont: { color: PALETTE.annotation, size: 11 },
-      hovertemplate: "%{y}<br>Score: %{x:.4f}<extra></extra>",
+      hovertemplate: "%{y}<br>Score: %{x:.3f}<extra></extra>",
     },
   ];
 
   const baseHover = (item: AlternativeMetric) =>
-    `${item.name}<br>Rank: ${item.rank}o<br>d+: ${item.dPlus.toFixed(4)}<br>d-: ${item.dMinus.toFixed(4)}<br>Score: ${item.score.toFixed(4)}<br>Ponderados: [${item.values.map((value) => value.toFixed(3)).join(", ")}]`;
+    `${item.name}<br>Rank: ${item.rank}o<br>d+: ${item.dPlus.toFixed(3)}<br>d-: ${item.dMinus.toFixed(3)}<br>Score: ${item.score.toFixed(3)}<br>Ponderados: [${item.values.map((value) => value.toFixed(3)).join(", ")}]`;
 
   const heatmapZ = metrics.map((item) => criteriaForContribution.map((col) => item.values[col] ?? 0));
   const heatmapCustom = metrics.map((item) =>
@@ -762,15 +766,18 @@ export default function ResultPage() {
       return toPis <= toNis ? "mais proximo do PIS" : "mais proximo do NIS";
     }),
   );
-  const heatmapAnnotations = metrics.flatMap((item) =>
-    criteriaForContribution.map((col) => ({
-      x: data.criteria_names[col],
-      y: item.name,
-      text: (item.values[col] ?? 0).toFixed(4),
-      showarrow: false,
-      font: { size: 11, color: PALETTE.annotation },
-    })),
-  );
+  const heatmapAnnotations =
+    metrics.length <= 4
+      ? metrics.flatMap((item) =>
+          criteriaForContribution.map((col) => ({
+            x: data.criteria_names[col],
+            y: item.name,
+            text: (item.values[col] ?? 0).toFixed(3),
+            showarrow: false,
+            font: { size: 10, color: PALETTE.annotation },
+          })),
+        )
+      : [];
   const winnerSeparator =
     metrics.length > 1
       ? [
@@ -813,7 +820,7 @@ export default function ResultPage() {
         const total = dPlusSquaredTotal[idx] || 1;
         return (value / total) * 100;
       }),
-      hovertemplate: `${criterion}: %{y:.6f} (%{customdata:.1f}% de d+²)<extra></extra>`,
+      hovertemplate: `${criterion}: %{y:.6f} (%{customdata:.1f}% de d⁺²)<extra></extra>`,
     };
   });
 
@@ -826,7 +833,7 @@ export default function ResultPage() {
       marker: {
         color: [...simulated.ranking].reverse().map((item) => rankColor(item.rank, simulated.ranking.length)),
       },
-      hovertemplate: "%{y}<br>Score simulado: %{x:.4f}<extra></extra>",
+      hovertemplate: "%{y}<br>Score simulado: %{x:.3f}<extra></extra>",
     },
   ];
 
@@ -838,22 +845,22 @@ export default function ResultPage() {
       const lineToNisY = metrics.flatMap((item) => [item.values[1], data.nis[1], null]);
 
       return {
-        title: "Visualizacao Espacial 2D",
-        subtitle: "2 criterios detectados: scatter 2D com PIS/NIS e linhas de distancia",
+        title: "Visualização Espacial 2D",
+        subtitle: "2 critérios detectados: scatter 2D com PIS/NIS e linhas de distância",
         data: [
           {
             type: "scatter",
             mode: "lines",
-            name: "Ligacao ao PIS",
+            name: "Ligação ao PIS",
             x: lineToPisX,
             y: lineToPisY,
-            line: { color: PALETTE.brandDark, width: 1.8, dash: "dot" },
+            line: { color: PALETTE.dPlus, width: 1.8, dash: "dot" },
             hoverinfo: "skip",
           },
           {
             type: "scatter",
             mode: "lines",
-            name: "Ligacao ao NIS",
+            name: "Ligação ao NIS",
             x: lineToNisX,
             y: lineToNisY,
             line: { color: PALETTE.dMinus, width: 1.8, dash: "dot" },
@@ -883,7 +890,7 @@ export default function ResultPage() {
             y: [data.pis[1]],
             text: ["★ PIS"],
             textposition: "top right",
-            marker: { color: PALETTE.brandDark, size: 18, symbol: "star" },
+            marker: { color: PALETTE.pis, size: 18, symbol: "star" },
             hovertemplate: "PIS<extra></extra>",
           },
           {
@@ -894,7 +901,7 @@ export default function ResultPage() {
             y: [data.nis[1]],
             text: ["✕ NIS"],
             textposition: "bottom right",
-            marker: { color: PALETTE.dMinus, size: 16, symbol: "x" },
+            marker: { color: PALETTE.nis, size: 16, symbol: "x" },
             hovertemplate: "NIS<extra></extra>",
           },
         ],
@@ -914,23 +921,23 @@ export default function ResultPage() {
       const lineToNisZ = metrics.flatMap((item) => [item.values[2], data.nis[2], null]);
 
       return {
-        title: "Visualizacao Espacial 3D",
-        subtitle: "3 criterios detectados: scatter 3D interativo com PIS/NIS",
+        title: "Visualização Espacial 3D",
+        subtitle: "3 critérios detectados: scatter 3D interativo com PIS/NIS",
         data: [
           {
             type: "scatter3d",
             mode: "lines",
-            name: "Ligacao ao PIS",
+            name: "Ligação ao PIS",
             x: lineToPisX,
             y: lineToPisY,
             z: lineToPisZ,
-            line: { color: PALETTE.brandDark, width: 3 },
+            line: { color: PALETTE.dPlus, width: 3 },
             hoverinfo: "skip",
           },
           {
             type: "scatter3d",
             mode: "lines",
-            name: "Ligacao ao NIS",
+            name: "Ligação ao NIS",
             x: lineToNisX,
             y: lineToNisY,
             z: lineToNisZ,
@@ -961,7 +968,7 @@ export default function ResultPage() {
             y: [data.pis[1]],
             z: [data.pis[2]],
             text: ["★ PIS"],
-            marker: { color: PALETTE.brandDark, size: 7, symbol: "diamond" },
+            marker: { color: PALETTE.pis, size: 7, symbol: "diamond" },
             hovertemplate: "PIS<extra></extra>",
           },
           {
@@ -972,7 +979,7 @@ export default function ResultPage() {
             y: [data.nis[1]],
             z: [data.nis[2]],
             text: ["✕ NIS"],
-            marker: { color: PALETTE.dMinus, size: 7, symbol: "cross" },
+            marker: { color: PALETTE.nis, size: 7, symbol: "cross" },
             hovertemplate: "NIS<extra></extra>",
           },
         ],
@@ -992,9 +999,7 @@ export default function ResultPage() {
       const pisProjection = projected[metrics.length];
       const nisProjection = projected[metrics.length + 1];
       const altProjections = projected.slice(0, metrics.length);
-      const pcaMarkerColors = metrics.map(
-        (_, idx) => PCA_CONTRAST_COLORS.alternatives[idx % PCA_CONTRAST_COLORS.alternatives.length],
-      );
+      const pcaMarkerColors = metrics.map((item) => item.color);
 
       const lineToPisX = altProjections.flatMap((point) => [point[0], pisProjection[0], null]);
       const lineToPisY = altProjections.flatMap((point) => [point[1], pisProjection[1], null]);
@@ -1004,13 +1009,13 @@ export default function ResultPage() {
       const lineToNisZ = altProjections.flatMap((point) => [point[2], nisProjection[2], null]);
 
       return {
-        title: "Visualizacao Espacial PCA",
-        subtitle: `4-6 criterios detectados: PCA 3D interativo (variancia explicada: ${explained.toFixed(2)}%)`,
+        title: "Visualização Espacial PCA",
+        subtitle: `4-6 critérios detectados: PCA 3D interativo (variância explicada: ${explained.toFixed(2)}%)`,
         data: [
           {
             type: "scatter3d",
             mode: "lines",
-            name: "Ligacao ao PIS",
+            name: "Ligação ao PIS",
             x: lineToPisX,
             y: lineToPisY,
             z: lineToPisZ,
@@ -1020,7 +1025,7 @@ export default function ResultPage() {
           {
             type: "scatter3d",
             mode: "lines",
-            name: "Ligacao ao NIS",
+            name: "Ligação ao NIS",
             x: lineToNisX,
             y: lineToNisY,
             z: lineToNisZ,
@@ -1080,8 +1085,8 @@ export default function ResultPage() {
     }
 
     return {
-      title: "Visualizacao Espacial em Coordenadas Paralelas",
-      subtitle: "7+ criterios detectados: parallel coordinates para alta dimensionalidade",
+        title: "Visualização Espacial em Coordenadas Paralelas",
+        subtitle: "7+ critérios detectados: parallel coordinates para alta dimensionalidade",
       data: [
         {
           type: "parcoords",
@@ -1111,7 +1116,7 @@ export default function ResultPage() {
     <main className="min-h-screen bg-gray-50">
 
       {/* ── NAV ── */}
-      <nav className="bg-[#231F20] px-10 h-16 flex items-center justify-between">
+      <nav className="bg-[#231F20] px-4 sm:px-6 lg:px-10 h-16 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-3">
           <div className="w-8 h-8 bg-[#DB1E2F] rounded-md flex items-center justify-center text-white font-black text-sm">
             T
@@ -1121,7 +1126,7 @@ export default function ResultPage() {
             <span className="text-gray-500 text-xs block leading-none mt-0.5">Sistema de Informações · Cin-UFPE</span>
           </div>
         </Link>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <Link
             href="/decision"
             className="text-gray-400 hover:text-white text-sm px-4 py-2 rounded-md hover:bg-white/5 transition"
@@ -1138,23 +1143,23 @@ export default function ResultPage() {
       </nav>
 
       {/* ── HERO ── */}
-      <section className="bg-[#231F20] px-10 pt-12 pb-14 relative overflow-hidden">
+      <section className="bg-[#231F20] px-4 sm:px-6 lg:px-10 pt-10 sm:pt-12 pb-12 sm:pb-14 relative overflow-hidden">
         <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-[#DB1E2F] via-[#DB1E2F]/30 to-transparent" />
         <div className="max-w-5xl">
           <p className="text-[#DB1E2F] text-xs font-bold uppercase tracking-[3px] mb-3">
             Resultado
           </p>
-          <h1 className="text-4xl font-black text-white mb-2">
+          <h1 className="text-3xl sm:text-4xl font-black text-white mb-2">
             Ranking TOPSIS
           </h1>
-          <p className="text-gray-400 text-sm leading-relaxed max-w-lg">
+          <p className="text-gray-300 text-sm leading-relaxed max-w-lg">
             Ranking calculado pelo método TOPSIS clássico (distância Euclidiana, p=2).
             Maior coeficiente de proximidade = melhor alternativa.
           </p>
         </div>
       </section>
 
-      <div className="max-w-5xl mx-auto px-10 py-10 flex flex-col gap-6">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-10 py-8 sm:py-10 flex flex-col gap-6">
 
         {/* ── VENCEDOR ── */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -1163,7 +1168,7 @@ export default function ResultPage() {
               <p className="text-red-200 text-xs font-bold uppercase tracking-[2px] mb-1">
                 Vencedor
               </p>
-              <p className="text-white text-3xl font-black">
+               <p className="text-white text-2xl sm:text-3xl font-black">
                 🏆 {winner?.name}
               </p>
             </div>
@@ -1171,7 +1176,7 @@ export default function ResultPage() {
               <p className="text-red-200 text-xs font-bold uppercase tracking-[2px] mb-1">
                 Coeficiente
               </p>
-              <p className="text-white text-3xl font-black">
+               <p className="text-white text-2xl sm:text-3xl font-black">
                 {winner?.score.toFixed(4)}
               </p>
               {winnerMargin !== null && (
@@ -1205,7 +1210,7 @@ export default function ResultPage() {
                   {["#", "Alternativa", "CCi", "d⁺", "d⁻"].map((h) => (
                     <th
                       key={h}
-                      className="px-4 py-2 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider"
+                      className="px-4 py-2 text-left text-[10px] font-bold text-gray-600 uppercase tracking-wider"
                     >
                       {h}
                     </th>
@@ -1233,13 +1238,13 @@ export default function ResultPage() {
                     </td>
                     <td className="px-4 py-3 font-semibold text-[#231F20]">{item.name}</td>
                     <td className="px-4 py-3 font-mono text-[#231F20]">
-                      {item.score.toFixed(4)}
+                      {item.score.toFixed(3)}
                     </td>
                     <td className="px-4 py-3 font-mono text-gray-500">
-                      {item.dPlus.toFixed(4)}
+                      {item.dPlus.toFixed(3)}
                     </td>
                     <td className="px-4 py-3 font-mono text-gray-500">
-                      {item.dMinus.toFixed(4)}
+                      {item.dMinus.toFixed(3)}
                     </td>
                   </tr>
                 ))}
@@ -1252,8 +1257,8 @@ export default function ResultPage() {
         <div className="bg-white rounded-xl border border-gray-200 p-7 shadow-sm">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-lg font-extrabold text-[#231F20] mb-1">Distancias ao Ideal</h2>
-              <p className="text-xs text-gray-400 mb-4">Comparacao direta entre d+ (PIS) e d- (NIS) por alternativa</p>
+              <h2 className="text-lg font-extrabold text-[#231F20] mb-1">Distâncias ao Ideal</h2>
+              <p className="text-xs text-gray-600 mb-4">Comparação direta entre d⁺ (PIS) e d⁻ (NIS) por alternativa.</p>
             </div>
             <div className="flex items-center gap-2">
               <ResultExplanation title="Distâncias ao Ideal">
@@ -1273,17 +1278,24 @@ export default function ResultPage() {
               </button>
             </div>
           </div>
-          {showDistances && <div className="h-[380px]">
+          {showDistances && <div style={{ height: `${distanceChartHeight}px` }}>
             <Plot
               data={distPlotData}
               layout={{
                 ...BASE_LAYOUT,
                 barmode: "group",
                 margin: { l: 40, r: 20, t: 20, b: 70 },
-                legend: { orientation: "h", x: 0, y: 1.15 },
+                legend: { orientation: "h", x: 0, y: -0.22 },
                 xaxis: { ...(BASE_LAYOUT.xaxis ?? {}), tickangle: -25 },
-                yaxis: { ...(BASE_LAYOUT.yaxis ?? {}), title: "Distancia Euclidiana" },
-                annotations: distanceAnnotations,
+                yaxis: {
+                  ...(BASE_LAYOUT.yaxis ?? {}),
+                  title: "Distância Euclidiana",
+                  tickformat: ".3f",
+                  range: [0, distanceYAxisMax],
+                  tickmode: "linear",
+                  dtick: distanceDtick,
+                },
+                clickmode: "event+select",
               }}
               config={BASE_CONFIG}
               style={{ width: "100%", height: "100%" }}
@@ -1296,7 +1308,7 @@ export default function ResultPage() {
           <div className="flex items-start justify-between gap-3">
             <div>
               <h2 className="text-lg font-extrabold text-[#231F20] mb-1">Score de Proximidade</h2>
-              <p className="text-xs text-gray-400 mb-4">Score = d- / (d+ + d-), ordenado pelo ranking final</p>
+              <p className="text-xs text-gray-600 mb-4">Score = d⁻ / (d⁺ + d⁻), ordenado pelo ranking final.</p>
             </div>
             <div className="flex items-center gap-2">
               <ResultExplanation title="Score de Proximidade">
@@ -1324,7 +1336,7 @@ export default function ResultPage() {
               layout={{
                 ...BASE_LAYOUT,
                 margin: { l: 130, r: 24, t: 20, b: 40 },
-                xaxis: { ...(BASE_LAYOUT.xaxis ?? {}), title: "Score de proximidade", range: [0, 1] },
+                xaxis: { ...(BASE_LAYOUT.xaxis ?? {}), title: "Score de proximidade", range: [0, 1], tickformat: ".2f" },
                 shapes: [
                   {
                     type: "line",
@@ -1349,7 +1361,7 @@ export default function ResultPage() {
                   },
                 ],
               }}
-              config={{ ...BASE_CONFIG, scrollZoom: true }}
+              config={BASE_CONFIG}
               style={{ width: "100%", height: "100%" }}
             />
           </div>}
@@ -1359,8 +1371,8 @@ export default function ResultPage() {
         <div className="bg-white rounded-xl border border-gray-200 p-7 shadow-sm">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-lg font-extrabold text-[#231F20] mb-1">Contribuicao por Criterio</h2>
-              <p className="text-xs text-gray-400 mb-4">Heatmap da matriz ponderada e decomposicao de contribuicao para d+²</p>
+              <h2 className="text-lg font-extrabold text-[#231F20] mb-1">Contribuição por Critério</h2>
+              <p className="text-xs text-gray-600 mb-4">Heatmap da matriz ponderada e decomposição da contribuição para d⁺².</p>
             </div>
             <div className="flex items-center gap-2">
               <ResultExplanation title="Contribuição por Critério">
@@ -1383,7 +1395,7 @@ export default function ResultPage() {
             {criteriaForContribution.map((col, idx) => (
               <span
                 key={`criterion-chip-${data.criteria_names[col]}`}
-                className="inline-flex items-center gap-1 rounded-full bg-slate-50 border border-slate-200 px-2 py-1 text-[11px] text-slate-600"
+                className="inline-flex items-center gap-1 rounded-full bg-slate-50 border border-slate-300 px-2 py-1 text-[11px] text-slate-700"
               >
                 <span
                   className="inline-block w-2 h-2 rounded-full"
@@ -1418,7 +1430,7 @@ export default function ResultPage() {
                   zmin: 0,
                   colorscale: heatColorscale,
                   customdata: heatmapCustom,
-                  hovertemplate: "%{y} × %{x}: %{z:.4f}<br>%{customdata}<extra></extra>",
+                  hovertemplate: "%{y} × %{x}: %{z:.3f}<br>%{customdata}<extra></extra>",
                 },
               ]}
               layout={{
@@ -1435,7 +1447,7 @@ export default function ResultPage() {
           </div>
 
           <div className="flex items-start justify-between gap-3 mb-1">
-            <p className="text-sm font-semibold text-[#231F20]">Decomposicao da distancia por criterio</p>
+            <p className="text-sm font-semibold text-[#231F20]">Decomposição da distância por critério</p>
             <ResultExplanation title="Decomposição de d+ por Critério">
               <p>
                 Cada segmento empilhado mostra a contribuição quadrática de um critério para d⁺² da alternativa.
@@ -1452,9 +1464,9 @@ export default function ResultPage() {
               layout={{
                 ...BASE_LAYOUT,
                 barmode: "stack",
-                margin: { l: 70, r: 20, t: 20, b: 70 },
-                yaxis: { ...(BASE_LAYOUT.yaxis ?? {}), title: "Contribuicao quadratica para d+² por criterio" },
-                legend: { orientation: "h", x: 0, y: 1.15 },
+                margin: { l: 70, r: 130, t: 20, b: 70 },
+                yaxis: { ...(BASE_LAYOUT.yaxis ?? {}), title: "Contribuição quadrática para d⁺² por critério" },
+                legend: { orientation: "v", x: 1.02, y: 1, xanchor: "left" },
               }}
               config={BASE_CONFIG}
               style={{ width: "100%", height: "100%" }}
@@ -1463,12 +1475,12 @@ export default function ResultPage() {
           </>}
         </div>
 
-        {/* ── VISUALIZACAO ESPACIAL ADAPTATIVA ── */}
+        {/* ── VISUALIZAÇÃO ESPACIAL ADAPTATIVA ── */}
         <div className="bg-white rounded-xl border border-gray-200 p-7 shadow-sm">
           <div className="flex items-start justify-between gap-3">
             <div>
               <h2 className="text-lg font-extrabold text-[#231F20] mb-1">{spatialSection.title}</h2>
-              <p className="text-xs text-gray-400 mb-4">{spatialSection.subtitle}</p>
+              <p className="text-xs text-gray-600 mb-4">{spatialSection.subtitle}.</p>
             </div>
             <div className="flex items-center gap-2">
               <ResultExplanation title="Visualização Espacial">
@@ -1486,28 +1498,28 @@ export default function ResultPage() {
               </button>
             </div>
           </div>
-          {showSpatial && <div className="h-[460px]">
+          {showSpatial && <div style={{ height: `${spatialChartHeight}px` }}>
             <Plot
               data={spatialSection.data}
               layout={{
                 ...BASE_LAYOUT,
                 margin: { l: 55, r: 20, t: 20, b: 45 },
                 showlegend: true,
-                legend: { orientation: "h", x: 0, y: 1.1 },
+                legend: { orientation: "v", x: 1.02, y: 1, xanchor: "left" },
                 ...spatialSection.layout,
               }}
-              config={BASE_CONFIG}
+              config={{ ...BASE_CONFIG, scrollZoom: true }}
               style={{ width: "100%", height: "100%" }}
             />
           </div>}
         </div>
 
-        {/* ── ANALISE DE SENSIBILIDADE DE PESOS ── */}
+        {/* ── ANÁLISE DE SENSIBILIDADE DE PESOS ── */}
         <div className="bg-white rounded-xl border border-gray-200 p-7 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <div>
-              <h2 className="text-lg font-extrabold text-[#231F20] mb-1">Analise de Sensibilidade de Pesos</h2>
-              <p className="text-xs text-gray-400">Ajuste os pesos e acompanhe o ranking simulado em tempo real</p>
+              <h2 className="text-lg font-extrabold text-[#231F20] mb-1">Análise de Sensibilidade de Pesos</h2>
+              <p className="text-xs text-gray-600">Ajuste os pesos e acompanhe o ranking simulado em tempo real.</p>
             </div>
             <div className="flex items-center gap-2">
               <ResultExplanation title="Análise de Sensibilidade">
@@ -1558,7 +1570,7 @@ export default function ResultPage() {
           <div className="grid lg:grid-cols-2 gap-6">
             <div className="border border-gray-100 rounded-lg p-4">
               <div className="flex items-start justify-between gap-2 mb-3">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">Ranking simulado</h3>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-gray-600">Ranking simulado</h3>
                 <ResultExplanation title="Ranking Simulado">
                   <p>
                     Mostra a nova ordem das alternativas para os pesos ajustados, incluindo variação de score em
@@ -1569,7 +1581,7 @@ export default function ResultPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-gray-100 text-left text-[10px] uppercase tracking-wider text-gray-400">
+                    <tr className="border-b border-gray-100 text-left text-[10px] uppercase tracking-wider text-gray-600">
                       <th className="py-2">#</th>
                       <th className="py-2">Alternativa</th>
                       <th className="py-2">Score</th>
@@ -1581,10 +1593,10 @@ export default function ResultPage() {
                       <tr key={item.name} className="border-b border-gray-50">
                         <td className="py-2 font-semibold">{item.rank}o</td>
                         <td className="py-2 font-semibold text-[#231F20]">{item.name}</td>
-                        <td className="py-2 font-mono">{item.score.toFixed(4)}</td>
+                        <td className="py-2 font-mono">{item.score.toFixed(3)}</td>
                         <td className={`py-2 font-mono ${item.delta >= 0 ? "text-emerald-700" : "text-red-700"}`}>
                           {item.delta >= 0 ? "+" : ""}
-                          {item.delta.toFixed(4)}
+                          {item.delta.toFixed(3)}
                         </td>
                       </tr>
                     ))}
@@ -1595,13 +1607,13 @@ export default function ResultPage() {
               <p className={`mt-4 text-xs font-semibold ${simulated.changed ? "text-amber-700" : "text-emerald-700"}`}>
                 {simulated.changed
                   ? simulated.inversionMessage
-                  : "✓ Ranking estavel nesta configuracao de pesos"}
+                  : "✓ Ranking estável nesta configuração de pesos."}
               </p>
             </div>
 
             <div className="border border-gray-100 rounded-lg p-4">
               <div className="flex items-start justify-between gap-2 mb-3">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">Score simulado</h3>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-gray-600">Score simulado</h3>
                 <ResultExplanation title="Score Simulado">
                   <p>
                     Exibe visualmente os novos coeficientes de proximidade após ajustes de peso para facilitar comparação
@@ -1615,7 +1627,7 @@ export default function ResultPage() {
                   layout={{
                     ...BASE_LAYOUT,
                     margin: { l: 110, r: 20, t: 10, b: 30 },
-                    xaxis: { ...(BASE_LAYOUT.xaxis ?? {}), range: [0, 1], title: "Score" },
+                    xaxis: { ...(BASE_LAYOUT.xaxis ?? {}), range: [0, 1], title: "Score", tickformat: ".2f" },
                   }}
                   config={BASE_CONFIG}
                   style={{ width: "100%", height: "100%" }}
