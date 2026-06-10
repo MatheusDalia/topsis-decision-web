@@ -10,7 +10,21 @@ import math
 
 import pytest
 
+from app.services.pca_service import project_weighted_space
 from app.topsis import CriterionType, Normalization, topsis
+
+
+@pytest.fixture
+def chen_2000_example():
+    matrix = [
+        [7.7, 7.0, 7.7, 9.67, 5.0],
+        [8.3, 10.0, 9.7, 10.0, 9.0],
+        [8.0, 9.0, 9.0, 9.0, 8.3],
+    ]
+    weights = [0.90, 1.00, 0.93, 1.00, 0.63]
+    types = [CriterionType.BENEFIT] * 5
+    labels = ["A1", "A2", "A3"]
+    return matrix, weights, types, labels
 
 
 def test_chen_2000_example_ranking():
@@ -68,3 +82,20 @@ def test_mismatched_weights_raise():
 def test_zero_weights_raise():
     with pytest.raises(ValueError):
         topsis([[1, 2], [3, 4]], [0, 0], ["benefit", "benefit"])
+
+
+def test_projection_returns_alternatives_plus_pis_nis(chen_2000_example):
+    matrix, weights, types, labels = chen_2000_example
+    res = topsis(matrix, weights, types, normalization=Normalization.LINEAR)
+    points, variance_explained = project_weighted_space(
+        weighted_matrix=res.weighted,
+        pis=res.pis,
+        nis=res.nis,
+        alternative_names=labels,
+    )
+
+    assert len(points) == len(labels) + 2
+    point_types = [point.type for point in points]
+    assert point_types.count("pis") == 1
+    assert point_types.count("nis") == 1
+    assert 0.0 <= variance_explained <= 100.0

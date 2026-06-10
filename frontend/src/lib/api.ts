@@ -38,6 +38,25 @@ export interface TopsisResponse {
   alternative_names: string[];
 }
 
+export type ProjectionPointType = "alternative" | "pis" | "nis";
+
+export interface ProjectionPoint {
+  id: string;
+  label: string;
+  type: ProjectionPointType;
+  x: number;
+  y: number;
+  z: number;
+}
+
+export interface TopsisProjectionResponse {
+  points: ProjectionPoint[];
+  variance_explained: number;
+  d_plus: Record<string, number>;
+  d_minus: Record<string, number>;
+  cc: Record<string, number>;
+}
+
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -62,4 +81,19 @@ export async function exportCsv(req: TopsisRequest): Promise<Blob> {
   });
   if (!r.ok) throw new Error(`API ${r.status}`);
   return await r.blob();
+}
+
+export async function fetchProjection(
+  req: TopsisRequest,
+): Promise<TopsisProjectionResponse> {
+  const r = await fetch(`${API_BASE}/api/v1/topsis/projection`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+  });
+  if (!r.ok) {
+    const text = await r.text();
+    throw new Error(`Projection API ${r.status}: ${text}`);
+  }
+  return (await r.json()) as TopsisProjectionResponse;
 }

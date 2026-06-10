@@ -9,13 +9,16 @@ client = TestClient(app)
 
 
 def _payload():
+    raw_weights = [0.90, 1.00, 0.93, 1.00, 0.63]
+    weight_sum = sum(raw_weights)
+    weights = [w / weight_sum for w in raw_weights]
     return {
         "criteria": [
-            {"name": "Estabilidade Emocional", "weight": 0.90, "type": "benefit"},
-            {"name": "Comunicação", "weight": 1.00, "type": "benefit"},
-            {"name": "Personalidade", "weight": 0.93, "type": "benefit"},
-            {"name": "Experiência", "weight": 1.00, "type": "benefit"},
-            {"name": "Autoconfiança", "weight": 0.63, "type": "benefit"},
+            {"name": "Estabilidade Emocional", "weight": weights[0], "type": "benefit"},
+            {"name": "Comunicação", "weight": weights[1], "type": "benefit"},
+            {"name": "Personalidade", "weight": weights[2], "type": "benefit"},
+            {"name": "Experiência", "weight": weights[3], "type": "benefit"},
+            {"name": "Autoconfiança", "weight": weights[4], "type": "benefit"},
         ],
         "alternatives": [
             {"name": "A1", "values": [7.7, 7.0, 7.7, 9.67, 5.0]},
@@ -48,6 +51,22 @@ def test_topsis_export_csv():
     body = r.text
     assert "rank,alternative,closeness" in body
     assert "A2" in body
+
+
+def test_topsis_projection():
+    payload = _payload()
+    r = client.post("/api/v1/topsis/projection", json=payload)
+    assert r.status_code == 200
+    data = r.json()
+    assert len(data["points"]) == len(payload["alternatives"]) + 2
+    types = [point["type"] for point in data["points"]]
+    assert types.count("pis") == 1
+    assert types.count("nis") == 1
+    assert 0.0 <= data["variance_explained"] <= 100.0
+    names = {alt["name"] for alt in payload["alternatives"]}
+    assert names.issubset(data["d_plus"].keys())
+    assert names.issubset(data["d_minus"].keys())
+    assert names.issubset(data["cc"].keys())
 
 
 def test_validation_mismatched_values():

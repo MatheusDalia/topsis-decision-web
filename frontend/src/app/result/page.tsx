@@ -237,7 +237,14 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { TopsisRequest, TopsisResponse, exportCsv } from "@/lib/api";
+import Topsis3DViewer from "@/components/Topsis3DViewer";
+import {
+  TopsisProjectionResponse,
+  TopsisRequest,
+  TopsisResponse,
+  exportCsv,
+  fetchProjection,
+} from "@/lib/api";
 
 const PALETTE = [
   "#DB1E2F", "#AF0421", "#374151", "#6b7280", "#9ca3af",
@@ -247,6 +254,9 @@ const PALETTE = [
 export default function ResultPage() {
   const [data, setData] = useState<TopsisResponse | null>(null);
   const [request, setRequest] = useState<TopsisRequest | null>(null);
+  const [projection, setProjection] = useState<TopsisProjectionResponse | null>(null);
+  const [projectionLoading, setProjectionLoading] = useState(false);
+  const [projectionError, setProjectionError] = useState<string | null>(null);
 
   useEffect(() => {
     const stored = sessionStorage.getItem("topsis:result");
@@ -254,6 +264,35 @@ export default function ResultPage() {
     if (stored) setData(JSON.parse(stored) as TopsisResponse);
     if (reqStored) setRequest(JSON.parse(reqStored) as TopsisRequest);
   }, []);
+
+  useEffect(() => {
+    if (!request) return;
+    let cancelled = false;
+    const runProjection = async () => {
+      setProjectionLoading(true);
+      setProjectionError(null);
+      try {
+        const res = await fetchProjection(request);
+        if (!cancelled) {
+          setProjection(res);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setProjectionError(
+            err instanceof Error ? err.message : "Nao foi possivel carregar a visualizacao 3D.",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setProjectionLoading(false);
+        }
+      }
+    };
+    runProjection();
+    return () => {
+      cancelled = true;
+    };
+  }, [request]);
 
   const handleExport = async () => {
     if (!request) return;
@@ -528,6 +567,19 @@ export default function ResultPage() {
             </div>
           </div>
         </details>
+
+        {/* ── VISUALIZACAO 3D ── */}
+        {projectionLoading && (
+          <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm text-sm text-gray-500">
+            Carregando visualizacao 3D da projecao PCA...
+          </div>
+        )}
+        {projectionError && (
+          <div className="bg-amber-50 rounded-xl border border-amber-200 p-6 shadow-sm text-sm text-amber-800">
+            Falha ao carregar visualizacao 3D: {projectionError}
+          </div>
+        )}
+        {projection && <Topsis3DViewer data={projection} />}
 
       </div>
 
