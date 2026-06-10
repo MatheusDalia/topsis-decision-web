@@ -80,43 +80,96 @@
 
 import Link from "next/link";
 
+const fundamentals = [
+  {
+    term: "Alternativas",
+    description: "Opções que serão comparadas (fornecedores, projetos, equipamentos, etc.).",
+  },
+  {
+    term: "Critérios",
+    description: "Dimensões de avaliação como custo, prazo, qualidade, risco e desempenho.",
+  },
+  {
+    term: "Pesos",
+    description: "Importância relativa de cada critério. Pesos maiores influenciam mais o ranking.",
+  },
+  {
+    term: "PIS e NIS",
+    description:
+      "PIS representa o melhor cenário critério a critério; NIS representa o pior cenário.",
+  },
+];
+
 const methodSteps = [
   {
     n: "1",
-    title: "Construção da matriz de decisão",
-    desc: "O usuário define as alternativas (linhas) e os critérios com seus pesos e tipos — benefício ou custo (colunas), formando a matriz X.",
-    formula: null,
+    title: "Montagem da matriz de decisão (X)",
+    why: "Organiza o problema em formato comparável.",
+    desc: "Cada linha representa uma alternativa e cada coluna representa um critério avaliado.",
+    formulas: [],
+    impact: "Sem uma matriz bem definida, o ranking não reflete o problema real.",
   },
   {
     n: "2",
-    title: "Normalização da matriz",
-    desc: "Os valores são normalizados para remover diferenças de escala entre critérios. No método vetorial clássico:",
-    formula: "rᵢⱼ = xᵢⱼ / √(Σ x²ₖⱼ)",
+    title: "Normalização",
+    why: "Evita que escalas diferentes distorçam o resultado.",
+    desc: "Converte os valores para escala comparável. No método vetorial clássico:",
+    formulas: ["rᵢⱼ = xᵢⱼ / √(Σ x²ₖⱼ)"],
+    impact: "Um critério em reais não domina outro medido em dias ou porcentagem.",
   },
   {
     n: "3",
-    title: "Ponderação dos critérios",
-    desc: "Cada coluna normalizada é multiplicada pelo peso do critério correspondente, refletindo sua importância relativa.",
-    formula: "vᵢⱼ = wⱼ · rᵢⱼ",
+    title: "Aplicação dos pesos",
+    why: "Incorpora prioridades de negócio na conta.",
+    desc: "Multiplica a matriz normalizada pelos pesos definidos para cada critério.",
+    formulas: ["vᵢⱼ = wⱼ · rᵢⱼ"],
+    impact: "Critérios estratégicos ganham mais influência no ranking final.",
   },
   {
     n: "4",
-    title: "Determinação das soluções ideais",
-    desc: "Calcula-se a Solução Ideal Positiva (PIS) com os melhores valores de cada critério, e a Solução Ideal Negativa (NIS) com os piores.",
-    formula: null,
+    title: "Determinação de PIS e NIS",
+    why: "Define os dois pontos de referência do método.",
+    desc: "Para cada critério, identifica o melhor valor (PIS) e o pior valor (NIS), respeitando tipo benefício/custo.",
+    formulas: [],
+    impact: "Cria o alvo ideal e o anti-ideal para medir cada alternativa.",
   },
   {
     n: "5",
-    title: "Cálculo das distâncias euclidianas",
-    desc: "Para cada alternativa, calcula-se a distância à PIS (d⁺) e à NIS (d⁻) usando a norma Euclidiana.",
-    formula: "dᵢ⁺ = √(Σ (vᵢⱼ − vⱼ⁺)²)",
+    title: "Distâncias para PIS e NIS",
+    why: "Mede quão perto cada alternativa está do ideal.",
+    desc: "Calcula distância euclidiana para os dois referenciais.",
+    formulas: ["dᵢ⁺ = √(Σ (vᵢⱼ − vⱼ⁺)²)", "dᵢ⁻ = √(Σ (vᵢⱼ − vⱼ⁻)²)"],
+    impact: "Boas alternativas combinam d⁺ pequeno com d⁻ grande.",
   },
   {
     n: "6",
     title: "Coeficiente de proximidade e ranking",
-    desc: "O CCᵢ varia entre 0 e 1. Quanto maior, mais próxima da solução ideal — portanto, melhor a alternativa.",
-    formula: "CCᵢ = dᵢ⁻ / (dᵢ⁺ + dᵢ⁻)",
+    why: "Transforma as distâncias em um índice único e ordenável.",
+    desc: "Calcula o coeficiente de proximidade (0 a 1) para ordenar as alternativas.",
+    formulas: ["CCᵢ = dᵢ⁻ / (dᵢ⁺ + dᵢ⁻)"],
+    impact: "Quanto maior o CCᵢ, mais próxima da solução ideal e melhor no ranking.",
   },
+];
+
+const processFlow = ["Matriz", "Normalização", "Pesos", "PIS/NIS", "Distâncias", "Ranking"];
+
+const interpretationTips = [
+  "CC próximo de 1 indica forte aderência ao cenário ideal.",
+  "CCs muito próximos entre si indicam alternativas competitivas e empate técnico.",
+  "Resultados dependem de pesos e tipo dos critérios; teste cenários para validar robustez.",
+  "TOPSIS apoia a decisão, mas não substitui restrições reais (orçamento, compliance, risco).",
+];
+
+const strengths = [
+  "Transparente: cada etapa pode ser auditada.",
+  "Intuitivo: combina proximidade ao ideal e distância do pior caso.",
+  "Prático: gera ranking objetivo para decisão multicritério.",
+];
+
+const limitations = [
+  "Compensatório: desempenho fraco em um critério pode ser compensado por outro.",
+  "Sensível a pesos e ao método de normalização.",
+  "Qualidade do ranking depende da qualidade dos dados de entrada.",
 ];
 
 const references = [
@@ -191,23 +244,92 @@ export default function About() {
         {/* Definição */}
         <div className="bg-red-50 border-l-4 border-[#DB1E2F] rounded-r-xl px-8 py-7 mb-14">
           <p className="text-[10px] font-black text-[#DB1E2F] tracking-[2px] uppercase mb-3">
-            Definição
+            Visão geral
           </p>
           <p className="text-[#231F20] text-sm leading-relaxed">
             <strong>TOPSIS</strong>{" "}
             <em className="text-gray-500">
               (Technique for Order Preference by Similarity to Ideal Solution)
             </em>{" "}
-            é um dos métodos de decisão multicritério mais aplicados no mundo.
-            Foi proposto por Hwang & Yoon em 1981 e desde então ganhou diversas
-            extensões.
+            é um método de apoio à decisão multicritério. Ele resolve um
+            problema comum: comparar opções quando os critérios são
+            conflitantes (por exemplo, menor custo versus maior qualidade).
             <br /><br />
-            O princípio é geometricamente intuitivo: a alternativa ideal deve
-            estar simultaneamente{" "}
-            <strong>mais próxima da Solução Ideal Positiva (PIS)</strong> —
-            formada pelos melhores valores de cada critério — e{" "}
-            <strong>mais distante da Solução Ideal Negativa (NIS)</strong>.
+            O princípio central é geométrico: a melhor alternativa é aquela
+            <strong> mais próxima da Solução Ideal Positiva (PIS)</strong> e,
+            ao mesmo tempo,
+            <strong> mais distante da Solução Ideal Negativa (NIS)</strong>.
+            Assim, o ranking final representa quão perto cada opção está do
+            melhor cenário possível.
           </p>
+        </div>
+
+        {/* Conceitos fundamentais */}
+        <div className="mb-14">
+          <h2 className="text-2xl font-extrabold text-[#231F20] mb-1">
+            Conceitos fundamentais
+          </h2>
+          <p className="text-gray-500 text-sm mb-7">
+            Estes elementos definem a modelagem da decisão e explicam por que o ranking funciona.
+          </p>
+
+          <div className="grid sm:grid-cols-2 gap-4 mb-7">
+            {fundamentals.map((item) => (
+              <div key={item.term} className="bg-white border border-gray-200 rounded-xl p-5">
+                <p className="text-xs font-black text-[#DB1E2F] tracking-[1.5px] uppercase mb-2">{item.term}</p>
+                <p className="text-sm text-gray-600 leading-relaxed">{item.description}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+            <div className="px-5 py-3 border-b border-gray-200 bg-gray-50">
+              <p className="text-sm font-bold text-[#231F20]">Regras para critério de benefício e custo</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 text-gray-500">
+                  <tr>
+                    <th className="text-left px-5 py-3 font-semibold">Tipo de critério</th>
+                    <th className="text-left px-5 py-3 font-semibold">PIS (ideal)</th>
+                    <th className="text-left px-5 py-3 font-semibold">NIS (anti-ideal)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-t border-gray-100">
+                    <td className="px-5 py-3 text-[#231F20] font-medium">Beneficio</td>
+                    <td className="px-5 py-3 text-gray-600">Maior valor do critério</td>
+                    <td className="px-5 py-3 text-gray-600">Menor valor do critério</td>
+                  </tr>
+                  <tr className="border-t border-gray-100">
+                    <td className="px-5 py-3 text-[#231F20] font-medium">Custo</td>
+                    <td className="px-5 py-3 text-gray-600">Menor valor do critério</td>
+                    <td className="px-5 py-3 text-gray-600">Maior valor do critério</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        {/* Fluxo do processo */}
+        <div className="mb-14">
+          <h2 className="text-2xl font-extrabold text-[#231F20] mb-1">
+            Fluxo do método
+          </h2>
+          <p className="text-gray-500 text-sm mb-6">
+            Linha do tempo da transformação dos dados até o ranking final.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {processFlow.map((step, idx) => (
+              <div key={step} className="flex items-center gap-2">
+                <div className="px-3 py-2 rounded-lg bg-[#231F20] text-white text-xs font-semibold tracking-wide">
+                  {idx + 1}. {step}
+                </div>
+                {idx < processFlow.length - 1 && <span className="text-gray-400 text-xs">→</span>}
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Passo a passo */}
@@ -215,8 +337,8 @@ export default function About() {
           <h2 className="text-2xl font-extrabold text-[#231F20] mb-1">
             Passo a passo do algoritmo
           </h2>
-          <p className="text-gray-400 text-sm mb-9">
-            O método segue 6 etapas bem definidas a partir da matriz de decisão
+          <p className="text-gray-500 text-sm mb-9">
+            Cada etapa tem um papel técnico claro e impacto direto no resultado.
           </p>
 
           <div className="flex flex-col gap-5">
@@ -230,15 +352,113 @@ export default function About() {
                 </div>
                 <div>
                   <h4 className="font-bold text-[#231F20] text-sm mb-1">{s.title}</h4>
-                  <p className="text-gray-500 text-sm leading-relaxed">{s.desc}</p>
-                  {s.formula && (
-                    <span className="inline-block mt-3 bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 font-serif text-sm text-gray-700">
-                      {s.formula}
-                    </span>
+                  <p className="text-xs uppercase tracking-wide text-[#DB1E2F] font-bold mb-2">Por que existe</p>
+                  <p className="text-gray-600 text-sm leading-relaxed mb-3">{s.why}</p>
+                  <p className="text-xs uppercase tracking-wide text-[#DB1E2F] font-bold mb-2">O que acontece</p>
+                  <p className="text-gray-600 text-sm leading-relaxed mb-3">{s.desc}</p>
+                  {s.formulas.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {s.formulas.map((formula) => (
+                        <span
+                          key={formula}
+                          className="inline-block bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 font-serif text-sm text-gray-700"
+                        >
+                          {formula}
+                        </span>
+                      ))}
+                    </div>
                   )}
+                  <p className="text-xs uppercase tracking-wide text-[#DB1E2F] font-bold mt-4 mb-2">Efeito no ranking</p>
+                  <p className="text-gray-600 text-sm leading-relaxed">{s.impact}</p>
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* Exemplo prático */}
+        <div className="mb-14 bg-gray-50 rounded-xl px-8 py-8">
+          <h2 className="text-2xl font-extrabold text-[#231F20] mb-1">
+            Exemplo prático (resumido)
+          </h2>
+          <p className="text-gray-600 text-sm leading-relaxed mb-5">
+            Suponha a escolha de um fornecedor com 3 critérios: custo (40%), qualidade (35%) e prazo de entrega (25%).
+            Custo e prazo são critérios de custo; qualidade é critério de benefício.
+          </p>
+
+          <div className="overflow-x-auto bg-white border border-gray-200 rounded-xl">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-gray-500">
+                <tr>
+                  <th className="text-left px-4 py-3 font-semibold">Alternativa</th>
+                  <th className="text-left px-4 py-3 font-semibold">Custo (R$)</th>
+                  <th className="text-left px-4 py-3 font-semibold">Qualidade (0-10)</th>
+                  <th className="text-left px-4 py-3 font-semibold">Prazo (dias)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-t border-gray-100">
+                  <td className="px-4 py-3 font-medium text-[#231F20]">A</td>
+                  <td className="px-4 py-3 text-gray-600">12.000</td>
+                  <td className="px-4 py-3 text-gray-600">8,0</td>
+                  <td className="px-4 py-3 text-gray-600">20</td>
+                </tr>
+                <tr className="border-t border-gray-100">
+                  <td className="px-4 py-3 font-medium text-[#231F20]">B</td>
+                  <td className="px-4 py-3 text-gray-600">10.500</td>
+                  <td className="px-4 py-3 text-gray-600">7,2</td>
+                  <td className="px-4 py-3 text-gray-600">17</td>
+                </tr>
+                <tr className="border-t border-gray-100">
+                  <td className="px-4 py-3 font-medium text-[#231F20]">C</td>
+                  <td className="px-4 py-3 text-gray-600">11.300</td>
+                  <td className="px-4 py-3 text-gray-600">9,1</td>
+                  <td className="px-4 py-3 text-gray-600">23</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p className="text-gray-600 text-sm leading-relaxed mt-5">
+            Depois da normalização e ponderação, o TOPSIS calcula PIS/NIS, gera d⁺ e d⁻ para cada alternativa e converte em CC.
+            A alternativa vencedora tende a equilibrar melhor os trade-offs, não necessariamente dominar todos os critérios individualmente.
+          </p>
+        </div>
+
+        {/* Interpretacao */}
+        <div className="mb-14">
+          <h2 className="text-2xl font-extrabold text-[#231F20] mb-1">
+            Como interpretar o ranking
+          </h2>
+          <p className="text-gray-500 text-sm mb-7">
+            O resultado é um apoio quantitativo para decisão profissional, não um substituto de julgamento especialista.
+          </p>
+          <div className="grid sm:grid-cols-2 gap-4">
+            {interpretationTips.map((tip) => (
+              <div key={tip} className="bg-white border border-gray-200 rounded-xl p-5">
+                <p className="text-sm text-gray-600 leading-relaxed">{tip}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Vantagens e limitações */}
+        <div className="mb-14 grid sm:grid-cols-2 gap-5">
+          <div className="bg-white border border-gray-200 rounded-xl p-6">
+            <h3 className="text-sm font-black text-[#231F20] uppercase tracking-[2px] mb-4">Vantagens</h3>
+            <ul className="space-y-3">
+              {strengths.map((item) => (
+                <li key={item} className="text-sm text-gray-600 leading-relaxed">{item}</li>
+              ))}
+            </ul>
+          </div>
+          <div className="bg-white border border-gray-200 rounded-xl p-6">
+            <h3 className="text-sm font-black text-[#231F20] uppercase tracking-[2px] mb-4">Limitacoes</h3>
+            <ul className="space-y-3">
+              {limitations.map((item) => (
+                <li key={item} className="text-sm text-gray-600 leading-relaxed">{item}</li>
+              ))}
+            </ul>
           </div>
         </div>
 
