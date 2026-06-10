@@ -8,7 +8,13 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
-from app.schemas import RankedAlternative, TopsisRequest, TopsisResponse
+from app.schemas import (
+    RankedAlternative,
+    TopsisProjectionResponse,
+    TopsisRequest,
+    TopsisResponse,
+)
+from app.services.pca_service import project_weighted_space
 from app.topsis import topsis
 
 app = FastAPI(
@@ -81,6 +87,7 @@ def run_topsis(req: TopsisRequest) -> TopsisResponse:
     return _solve(req)
 
 #endpoint que exporta o ranking das alternativas como um arquivo CSV, permitindo que o usuário baixe os resultados
+@app.post("/api/v1/topsis/export.csv", tags=["topsis"])
 def export_csv(req: TopsisRequest) -> StreamingResponse:
     """Run TOPSIS and stream the ranking as CSV."""
     response = _solve(req)
@@ -97,4 +104,26 @@ def export_csv(req: TopsisRequest) -> StreamingResponse:
         iter([buf.getvalue()]),
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=topsis_ranking.csv"},
+    )
+
+
+@app.post("/api/v1/topsis/projection", response_model=TopsisProjectionResponse, tags=["topsis"])
+def project_topsis(req: TopsisRequest) -> TopsisProjectionResponse:
+    """Project weighted alternatives + PIS/NIS into 3D PCA space."""
+    response = _solve(req)
+    points, variance_explained = project_weighted_space(
+        weighted_matrix=response.weighted_matrix,
+        pis=response.pis,
+        nis=response.nis,
+        alternative_names=response.alternative_names,
+    )
+    d_plus = {item.name: item.distance_to_pis for item in response.ranking}
+    d_minus = {item.name: item.distance_to_nis for item in response.ranking}
+    cc = {item.name: item.closeness for item in response.ranking}
+    return TopsisProjectionResponse(
+        points=points,
+        variance_explained=variance_explained,
+        d_plus=d_plus,
+        d_minus=d_minus,
+        cc=cc,
     )
