@@ -79,6 +79,7 @@
 // }
 
 import Link from "next/link";
+import AboutViewer3DLazy from "../../components/AboutViewer3DLazy";
 
 const fundamentals = [
   {
@@ -157,6 +158,7 @@ const interpretationTips = [
   "CC próximo de 1 indica forte aderência ao cenário ideal.",
   "CCs muito próximos entre si indicam alternativas competitivas e empate técnico.",
   "Resultados dependem de pesos e tipo dos critérios; teste cenários para validar robustez.",
+  "Análise de sensibilidade: varie os pesos para verificar se o ranking se mantém. Rankings estáveis indicam decisão robusta.",
   "TOPSIS apoia a decisão, mas não substitui restrições reais (orçamento, compliance, risco).",
 ];
 
@@ -167,7 +169,7 @@ const strengths = [
 ];
 
 const limitations = [
-  "Compensatório: desempenho fraco em um critério pode ser compensado por outro.",
+  "Reversão de ranking: adicionar ou remover uma alternativa pode alterar a ordem das demais (Hwang, Lai & Liu, 1993).",
   "Sensível a pesos e ao método de normalização.",
   "Qualidade do ranking depende da qualidade dos dados de entrada.",
 ];
@@ -206,7 +208,7 @@ export default function About() {
     <main className="min-h-screen bg-white">
 
       {/* ── NAV ── */}
-      <nav className="bg-[#231F20] px-10 h-16 flex items-center justify-between">
+      <nav className="bg-[#231F20] px-4 sm:px-6 lg:px-10 h-16 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-3">
           <div className="w-8 h-8 bg-[#DB1E2F] rounded-md flex items-center justify-center text-white font-black text-sm">
             T
@@ -225,10 +227,10 @@ export default function About() {
       </nav>
 
       {/* ── HERO ── */}
-      <section className="bg-[#231F20] px-10 pt-16 pb-20 relative overflow-hidden">
+      <section className="bg-[#231F20] px-4 sm:px-6 lg:px-10 pt-10 sm:pt-14 lg:pt-16 pb-12 sm:pb-16 lg:pb-20 relative overflow-hidden">
         <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-[#DB1E2F] via-[#DB1E2F]/30 to-transparent" />
         <div className="max-w-4xl">
-          <h1 className="text-5xl font-black text-white mb-4">
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white mb-4">
             Sobre o <span className="text-[#DB1E2F]">TOPSIS</span>
           </h1>
           <p className="text-gray-400 text-lg leading-relaxed max-w-xl">
@@ -239,7 +241,7 @@ export default function About() {
       </section>
 
       {/* ── CONTEÚDO ── */}
-      <div className="px-10 py-16 max-w-4xl">
+      <div className="px-4 sm:px-6 lg:px-10 py-8 sm:py-12 lg:py-16 max-w-4xl">
 
         {/* Definição */}
         <div className="bg-red-50 border-l-4 border-[#DB1E2F] rounded-r-xl px-8 py-7 mb-14">
@@ -332,6 +334,29 @@ export default function About() {
           </div>
         </div>
 
+        {/* Por que dois pontos de referência */}
+        <div className="mb-14 bg-white border border-gray-200 rounded-xl px-8 py-8">
+          <h2 className="text-2xl font-extrabold text-[#231F20] mb-1">
+            Por que dois pontos de referência?
+          </h2>
+          <div className="mt-5 space-y-3">
+            <p className="text-sm text-gray-600 leading-relaxed">
+              Métodos com um único ponto (Goal Programming, Global Criterion) podem ranquear bem uma alternativa
+              mediana porque ela fica &quot;no meio&quot; - perto da meta, mas também perto do pior cenário.
+            </p>
+            <p className="text-sm text-gray-600 leading-relaxed">
+              O TOPSIS exige equilíbrio entre d⁺ e d⁻ simultaneamente, tornando o ranking mais robusto.
+            </p>
+            <p className="text-sm text-gray-600 leading-relaxed">
+              PIS e NIS são pontos fictícios construídos coluna a coluna - raramente correspondem a uma
+              alternativa real.
+            </p>
+            <p className="text-xs text-gray-500 pt-1">
+              Fonte: Hwang, Lai & Liu (1993).
+            </p>
+          </div>
+        </div>
+
         {/* Passo a passo */}
         <div className="mb-14">
           <h2 className="text-2xl font-extrabold text-[#231F20] mb-1">
@@ -345,7 +370,7 @@ export default function About() {
             {methodSteps.map((s) => (
               <div
                 key={s.n}
-                className="flex gap-5 items-start bg-white border border-gray-200 rounded-xl p-6 hover:shadow-md transition"
+                className="flex flex-col sm:flex-row gap-4 sm:gap-5 items-start bg-white border border-gray-200 rounded-xl p-6 hover:shadow-md transition"
               >
                 <div className="min-w-[44px] h-11 bg-[#DB1E2F] text-white rounded-lg flex items-center justify-center font-black text-base">
                   {s.n}
@@ -373,6 +398,14 @@ export default function About() {
                 </div>
               </div>
             ))}
+          </div>
+
+          <div className="mt-6 bg-gray-50 border border-gray-200 rounded-xl p-5">
+            <p className="text-sm text-gray-600 leading-relaxed">
+              Quando as avaliações são qualitativas (ex.: &quot;bom&quot;, &quot;muito bom&quot;), o TOPSIS clássico exige
+              conversão manual para números. O Fuzzy TOPSIS (Chen, 2000) resolve isso nativamente com
+              variáveis linguísticas e números fuzzy triangulares.
+            </p>
           </div>
         </div>
 
@@ -462,6 +495,22 @@ export default function About() {
           </div>
         </div>
 
+        <div className="mb-14">
+          <h2 className="text-2xl font-extrabold text-[#231F20] mb-1">
+            Visualização geométrica do espaço de decisão
+          </h2>
+          <p className="text-gray-500 text-sm mb-6">
+            Cada eixo representa um critério ponderado. A melhor alternativa equilibra proximidade à PIS e distância da NIS.
+          </p>
+
+          <AboutViewer3DLazy />
+
+          <p className="text-gray-500 text-sm mt-4 leading-relaxed">
+            Como este exemplo tem 3 critérios, os pontos são plotados diretamente no espaço tridimensional real —
+            sem redução de dimensionalidade.
+          </p>
+        </div>
+
         {/* Referências */}
         <div className="bg-gray-50 rounded-xl px-9 py-8 mb-14">
           <h2 className="text-lg font-extrabold text-[#231F20] mb-6">
@@ -486,7 +535,7 @@ export default function About() {
           <p className="text-[#DB1E2F] text-xs font-bold uppercase tracking-[3px] mb-6">
             Stack Técnico deste Projeto
           </p>
-          <div className="grid sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {stack.map((s) => (
               <div
                 key={s.label}
