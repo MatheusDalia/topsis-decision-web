@@ -229,6 +229,7 @@ import Link from "next/link";
 import {
   type CSSProperties,
   type ComponentType,
+  type ReactNode,
   useMemo,
   useState,
   useSyncExternalStore,
@@ -255,6 +256,71 @@ type AlternativeMetric = {
 
 type CriterionKind = "benefit" | "cost";
 
+const PALETTE = {
+  brand: "#DB1E2F",
+  brandDark: "#AF0421",
+  criteria: [
+    "#7F1D1D",
+    "#991B1B",
+    "#B91C1C",
+    "#DC2626",
+    "#EF4444",
+    "#F87171",
+    "#FCA5A5",
+    "#FECACA",
+  ],
+  rankGradient: ["#7F1D1D", "#991B1B", "#B91C1C", "#DC2626", "#EF4444", "#F87171", "#FCA5A5"],
+  dPlus: "#B91C1C",
+  dMinus: "#F87171",
+  gridLine: "#F1F5F9",
+  axisText: "#64748B",
+  annotation: "#1E293B",
+} as const;
+
+const BASE_LAYOUT: Partial<Plotly.Layout> = {
+  paper_bgcolor: "rgba(0,0,0,0)",
+  plot_bgcolor: "rgba(0,0,0,0)",
+  font: {
+    family: "Inter, ui-sans-serif, system-ui, sans-serif",
+    color: PALETTE.axisText,
+    size: 12,
+  },
+  margin: { l: 56, r: 24, t: 16, b: 56 },
+  xaxis: {
+    gridcolor: PALETTE.gridLine,
+    linecolor: PALETTE.gridLine,
+    tickcolor: "rgba(0,0,0,0)",
+    zeroline: false,
+  },
+  yaxis: {
+    gridcolor: PALETTE.gridLine,
+    linecolor: PALETTE.gridLine,
+    tickcolor: "rgba(0,0,0,0)",
+    zeroline: false,
+  },
+  legend: {
+    bgcolor: "rgba(0,0,0,0)",
+    borderwidth: 0,
+    font: { size: 11, color: PALETTE.axisText },
+  },
+};
+
+const BASE_CONFIG = { responsive: true, displayModeBar: false };
+
+const heatColorscale: Plotly.ColorScale = [
+  [0, "#FEF2F2"],
+  [0.5, "#FCA5A5"],
+  [1, "#B91C1C"],
+];
+
+const PCA_CONTRAST_COLORS = {
+  alternatives: ["#EAB308", "#7C3AED", "#DC2626", "#16A34A", "#CA8A04", "#9333EA"],
+  toPis: "#16A34A",
+  toNis: "#DC2626",
+  pis: "#EAB308",
+  nis: "#7C3AED",
+} as const;
+
 function normalizeWeights(weights: number[]): number[] {
   const total = weights.reduce((sum, weight) => sum + weight, 0);
   if (total <= 0) {
@@ -262,6 +328,34 @@ function normalizeWeights(weights: number[]): number[] {
     return Array.from({ length: weights.length }, () => 1 / weights.length);
   }
   return weights.map((weight) => weight / total);
+}
+
+function ResultExplanation({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((state) => !state)}
+        className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-white px-2 py-1 text-xs text-gray-500 hover:text-gray-700 hover:border-gray-300 transition-colors"
+        aria-label={`${open ? "Fechar" : "Abrir"} ajuda: ${title}`}
+        aria-expanded={open}
+      >
+        <span className="text-sm leading-none">{open ? "✕" : "ⓘ"}</span>
+      </button>
+      {open && (
+        <div className="absolute right-0 top-9 z-20 w-[min(28rem,88vw)] p-4 bg-white rounded-lg border border-gray-200 shadow-lg text-sm text-gray-600 leading-relaxed">
+          {children}
+        </div>
+      )}
+    </div>
+  );
 }
 
 const noopSubscribe = () => () => {};
@@ -299,10 +393,13 @@ function euclideanDistance(a: number[], b: number[]): number {
 }
 
 function rankColor(rank: number, total: number): string {
-  if (total <= 1) return "hsl(140, 72%, 35%)";
-  const t = (rank - 1) / (total - 1);
-  const hue = 120 * (1 - t);
-  return `hsl(${hue}, 72%, 38%)`;
+  if (total <= 1) return PALETTE.rankGradient[0];
+  const ratio = (rank - 1) / (total - 1);
+  const index = Math.min(
+    PALETTE.rankGradient.length - 1,
+    Math.max(0, Math.round(ratio * (PALETTE.rankGradient.length - 1))),
+  );
+  return PALETTE.rankGradient[index];
 }
 
 function powerIteration(matrix: number[][], iterations = 200): { value: number; vector: number[] } {
@@ -363,6 +460,12 @@ export default function ResultPage() {
   const data = useSessionStorageJson<TopsisResponse>("topsis:result");
   const request = useSessionStorageJson<TopsisRequest>("topsis:request");
   const [editedWeights, setEditedWeights] = useState<number[] | null>(null);
+  const [showDistances, setShowDistances] = useState(true);
+  const [showScores, setShowScores] = useState(true);
+  const [showContribution, setShowContribution] = useState(true);
+  const [showSpatial, setShowSpatial] = useState(true);
+  const [showSensitivity, setShowSensitivity] = useState(true);
+  const [showMatrices, setShowMatrices] = useState(true);
 
   const handleExport = async () => {
     if (!request) return;
@@ -558,24 +661,39 @@ export default function ResultPage() {
   const winner = metrics[0];
   const winnerMargin = metrics.length > 1 && winner ? winner.score - metrics[1].score : null;
 
-  const barConfig = { responsive: true, displayModeBar: false };
+  const scoreChartHeight = Math.max(280, metrics.length * 72);
+  const heatmapHeight = Math.max(240, metrics.length * 80);
+
+  const activeCriterionIndices = data.criteria_names
+    .map((_, col) => col)
+    .filter((col) => data.weighted_matrix.some((row) => (row[col] ?? 0) !== 0));
+  const criteriaForContribution = activeCriterionIndices.length
+    ? activeCriterionIndices
+    : data.criteria_names.map((_, col) => col);
 
   const distPlotData = [
     {
       type: "bar",
-      name: "d+ (distancia ao PIS)",
+      name: "d⁺ (distância ao ideal positivo)",
       x: metrics.map((item) => item.name),
       y: metrics.map((item) => item.dPlus),
-      marker: { color: "#D85A30" },
+      marker: { color: PALETTE.dPlus },
     },
     {
       type: "bar",
-      name: "d- (distancia ao NIS)",
+      name: "d⁻ (distância ao ideal negativo)",
       x: metrics.map((item) => item.name),
       y: metrics.map((item) => item.dMinus),
-      marker: { color: "#1D9E75" },
+      marker: { color: PALETTE.dMinus },
     },
   ];
+  const distanceAnnotations = metrics.map((item) => ({
+    x: item.name,
+    y: Math.max(item.dPlus, item.dMinus) * 1.04,
+    text: item.score.toFixed(4),
+    showarrow: false,
+    font: { size: 11, color: PALETTE.axisText },
+  }));
 
   const scorePlotData = [
     {
@@ -584,6 +702,9 @@ export default function ResultPage() {
       x: [...metrics].reverse().map((item) => item.score),
       y: [...metrics].reverse().map((item) => `${item.rank}o - ${item.name}`),
       marker: { color: [...metrics].reverse().map((item) => item.color) },
+      text: [...metrics].reverse().map((item) => item.score.toFixed(4)),
+      textposition: "outside",
+      textfont: { color: PALETTE.annotation, size: 11 },
       hovertemplate: "%{y}<br>Score: %{x:.4f}<extra></extra>",
     },
   ];
@@ -591,21 +712,22 @@ export default function ResultPage() {
   const baseHover = (item: AlternativeMetric) =>
     `${item.name}<br>Rank: ${item.rank}o<br>d+: ${item.dPlus.toFixed(4)}<br>d-: ${item.dMinus.toFixed(4)}<br>Score: ${item.score.toFixed(4)}<br>Ponderados: [${item.values.map((value) => value.toFixed(3)).join(", ")}]`;
 
-  const heatmapZ = metrics.map((item) => item.values);
+  const heatmapZ = metrics.map((item) => criteriaForContribution.map((col) => item.values[col] ?? 0));
   const heatmapCustom = metrics.map((item) =>
-    item.values.map((value, col) => {
+    criteriaForContribution.map((col) => {
+      const value = item.values[col] ?? 0;
       const toPis = Math.abs(value - (data.pis[col] ?? 0));
       const toNis = Math.abs(value - (data.nis[col] ?? 0));
       return toPis <= toNis ? "mais proximo do PIS" : "mais proximo do NIS";
     }),
   );
   const heatmapAnnotations = metrics.flatMap((item) =>
-    item.values.map((value, col) => ({
+    criteriaForContribution.map((col) => ({
       x: data.criteria_names[col],
       y: item.name,
-      text: value.toFixed(4),
+      text: (item.values[col] ?? 0).toFixed(4),
       showarrow: false,
-      font: { size: 11, color: "#0f172a" },
+      font: { size: 11, color: PALETTE.annotation },
     })),
   );
   const winnerSeparator =
@@ -619,21 +741,33 @@ export default function ResultPage() {
             x1: 1,
             y0: 1 - 1 / metrics.length,
             y1: 1 - 1 / metrics.length,
-            line: { color: "#475569", width: 2, dash: "dash" },
+            line: { color: "#94A3B8", width: 1.5, dash: "dot" },
           },
         ]
       : [];
 
   const dPlusSquaredTotal = metrics.map((item) =>
-    item.values.reduce((sum, value, col) => sum + (value - (data.pis[col] ?? 0)) ** 2, 0),
+    criteriaForContribution.reduce((sum, col) => sum + ((item.values[col] ?? 0) - (data.pis[col] ?? 0)) ** 2, 0),
   );
-  const contributionTraces = data.criteria_names.map((criterion, col) => {
-    const values = metrics.map((item) => (item.values[col] - (data.pis[col] ?? 0)) ** 2);
+  const contributionTraces = criteriaForContribution.map((col, idx) => {
+    const criterion = data.criteria_names[col];
+    const values = metrics.map((item) => ((item.values[col] ?? 0) - (data.pis[col] ?? 0)) ** 2);
+    const text = values.map((value, rowIdx) => {
+      const total = dPlusSquaredTotal[rowIdx] || 1;
+      const pct = (value / total) * 100;
+      return pct >= 10 ? `${pct.toFixed(0)}%` : "";
+    });
     return {
       type: "bar",
       name: criterion,
+      legendgroup: criterion,
       x: metrics.map((item) => item.name),
       y: values,
+      marker: { color: PALETTE.criteria[idx % PALETTE.criteria.length] },
+      text,
+      textposition: "inside",
+      insidetextanchor: "middle",
+      textfont: { size: 10, color: "#ffffff" },
       customdata: values.map((value, idx) => {
         const total = dPlusSquaredTotal[idx] || 1;
         return (value / total) * 100;
@@ -672,7 +806,7 @@ export default function ResultPage() {
             name: "Ligacao ao PIS",
             x: lineToPisX,
             y: lineToPisY,
-            line: { color: "#378ADD", width: 1.8, dash: "dot" },
+            line: { color: PALETTE.brandDark, width: 1.8, dash: "dot" },
             hoverinfo: "skip",
           },
           {
@@ -681,7 +815,7 @@ export default function ResultPage() {
             name: "Ligacao ao NIS",
             x: lineToNisX,
             y: lineToNisY,
-            line: { color: "#D85A30", width: 1.8, dash: "dot" },
+            line: { color: PALETTE.dMinus, width: 1.8, dash: "dot" },
             hoverinfo: "skip",
           },
           {
@@ -708,7 +842,7 @@ export default function ResultPage() {
             y: [data.pis[1]],
             text: ["★ PIS"],
             textposition: "top right",
-            marker: { color: "#378ADD", size: 18, symbol: "star" },
+            marker: { color: PALETTE.brandDark, size: 18, symbol: "star" },
             hovertemplate: "PIS<extra></extra>",
           },
           {
@@ -719,7 +853,7 @@ export default function ResultPage() {
             y: [data.nis[1]],
             text: ["✕ NIS"],
             textposition: "bottom right",
-            marker: { color: "#D85A30", size: 16, symbol: "x" },
+            marker: { color: PALETTE.dMinus, size: 16, symbol: "x" },
             hovertemplate: "NIS<extra></extra>",
           },
         ],
@@ -749,7 +883,7 @@ export default function ResultPage() {
             x: lineToPisX,
             y: lineToPisY,
             z: lineToPisZ,
-            line: { color: "#378ADD", width: 3 },
+            line: { color: PALETTE.brandDark, width: 3 },
             hoverinfo: "skip",
           },
           {
@@ -759,7 +893,7 @@ export default function ResultPage() {
             x: lineToNisX,
             y: lineToNisY,
             z: lineToNisZ,
-            line: { color: "#D85A30", width: 3 },
+            line: { color: PALETTE.dMinus, width: 3 },
             hoverinfo: "skip",
           },
           {
@@ -786,7 +920,7 @@ export default function ResultPage() {
             y: [data.pis[1]],
             z: [data.pis[2]],
             text: ["★ PIS"],
-            marker: { color: "#378ADD", size: 7, symbol: "diamond" },
+            marker: { color: PALETTE.brandDark, size: 7, symbol: "diamond" },
             hovertemplate: "PIS<extra></extra>",
           },
           {
@@ -797,7 +931,7 @@ export default function ResultPage() {
             y: [data.nis[1]],
             z: [data.nis[2]],
             text: ["✕ NIS"],
-            marker: { color: "#D85A30", size: 7, symbol: "cross" },
+            marker: { color: PALETTE.dMinus, size: 7, symbol: "cross" },
             hovertemplate: "NIS<extra></extra>",
           },
         ],
@@ -817,6 +951,9 @@ export default function ResultPage() {
       const pisProjection = projected[metrics.length];
       const nisProjection = projected[metrics.length + 1];
       const altProjections = projected.slice(0, metrics.length);
+      const pcaMarkerColors = metrics.map(
+        (_, idx) => PCA_CONTRAST_COLORS.alternatives[idx % PCA_CONTRAST_COLORS.alternatives.length],
+      );
 
       const lineToPisX = altProjections.flatMap((point) => [point[0], pisProjection[0], null]);
       const lineToPisY = altProjections.flatMap((point) => [point[1], pisProjection[1], null]);
@@ -833,7 +970,7 @@ export default function ResultPage() {
             name: "Ligacao ao PIS",
             x: lineToPisX,
             y: lineToPisY,
-            line: { color: "#378ADD", width: 1.8, dash: "dot" },
+            line: { color: PCA_CONTRAST_COLORS.toPis, width: 1.8, dash: "dot" },
             hoverinfo: "skip",
           },
           {
@@ -842,7 +979,7 @@ export default function ResultPage() {
             name: "Ligacao ao NIS",
             x: lineToNisX,
             y: lineToNisY,
-            line: { color: "#D85A30", width: 1.8, dash: "dot" },
+            line: { color: PCA_CONTRAST_COLORS.toNis, width: 1.8, dash: "dot" },
             hoverinfo: "skip",
           },
           {
@@ -854,7 +991,7 @@ export default function ResultPage() {
             text: metrics.map((item) => `${item.rank}o`),
             textposition: "top center",
             marker: {
-              color: metrics.map((item) => item.color),
+              color: pcaMarkerColors,
               size: metrics.map((item) => item.size),
               line: { width: 1, color: "#0f172a" },
             },
@@ -869,7 +1006,7 @@ export default function ResultPage() {
             y: [pisProjection[1]],
             text: ["★ PIS"],
             textposition: "top right",
-            marker: { color: "#378ADD", size: 18, symbol: "star" },
+            marker: { color: PCA_CONTRAST_COLORS.pis, size: 18, symbol: "star" },
             hovertemplate: "PIS projetado em PCA<extra></extra>",
           },
           {
@@ -880,7 +1017,7 @@ export default function ResultPage() {
             y: [nisProjection[1]],
             text: ["✕ NIS"],
             textposition: "bottom right",
-            marker: { color: "#D85A30", size: 16, symbol: "x" },
+            marker: { color: PCA_CONTRAST_COLORS.nis, size: 16, symbol: "x" },
             hovertemplate: "NIS projetado em PCA<extra></extra>",
           },
         ],
@@ -900,9 +1037,9 @@ export default function ResultPage() {
           line: {
             color: metrics.map((item) => item.rank),
             colorscale: [
-              [0, "#14532d"],
-              [0.5, "#facc15"],
-              [1, "#b91c1c"],
+              [0, PALETTE.rankGradient[0]],
+              [0.5, PALETTE.rankGradient[3]],
+              [1, PALETTE.rankGradient[6]],
             ],
             cmin: 1,
             cmax: metrics.length,
@@ -997,9 +1134,19 @@ export default function ResultPage() {
 
         {/* ── RANKING COMPLETO ── */}
         <div className="bg-white rounded-xl border border-gray-200 p-7 shadow-sm">
-          <h2 className="text-sm font-extrabold text-[#231F20] mb-5">
-            Ranking completo
-          </h2>
+          <div className="flex items-start justify-between gap-3 mb-5">
+            <h2 className="text-sm font-extrabold text-[#231F20]">Ranking completo</h2>
+            <ResultExplanation title="Ranking Final">
+              <p>
+                Mostra a classificação final das alternativas após a aplicação do método TOPSIS. Quanto maior o
+                coeficiente de proximidade, melhor a alternativa atende ao conjunto de critérios e pesos definidos.
+              </p>
+              <p className="mt-2">
+                A alternativa em primeiro lugar apresenta a melhor combinação de desempenho considerando todos os
+                critérios informados.
+              </p>
+            </ResultExplanation>
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -1052,129 +1199,291 @@ export default function ResultPage() {
 
         {/* ── DISTANCIAS AO IDEAL ── */}
         <div className="bg-white rounded-xl border border-gray-200 p-7 shadow-sm">
-          <h2 className="text-sm font-extrabold text-[#231F20] mb-1">Distancias ao Ideal</h2>
-          <p className="text-xs text-gray-400 mb-4">Comparacao direta entre d+ (PIS) e d- (NIS) por alternativa</p>
-          <div className="h-[360px]">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-extrabold text-[#231F20] mb-1">Distancias ao Ideal</h2>
+              <p className="text-xs text-gray-400 mb-4">Comparacao direta entre d+ (PIS) e d- (NIS) por alternativa</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <ResultExplanation title="Distâncias ao Ideal">
+                <p>
+                  d⁺ é a distância Euclidiana de cada alternativa até a Solução Ideal Positiva (PIS), o vetor com os
+                  melhores valores por critério. d⁻ é a distância até a Solução Ideal Negativa (NIS), o cenário com os
+                  piores valores.
+                </p>
+                <p className="mt-2">Uma alternativa desejável combina d⁺ pequeno e d⁻ grande.</p>
+              </ResultExplanation>
+              <button
+                onClick={() => setShowDistances((state) => !state)}
+                className="text-xs font-semibold px-2 py-1 rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50"
+                aria-label={showDistances ? "Minimizar distâncias ao ideal" : "Expandir distâncias ao ideal"}
+              >
+                {showDistances ? "↓" : "↑"}
+              </button>
+            </div>
+          </div>
+          {showDistances && <div className="h-[380px]">
             <Plot
               data={distPlotData}
               layout={{
+                ...BASE_LAYOUT,
                 barmode: "group",
                 margin: { l: 40, r: 20, t: 20, b: 70 },
-                paper_bgcolor: "#ffffff",
-                plot_bgcolor: "#ffffff",
                 legend: { orientation: "h", x: 0, y: 1.15 },
-                xaxis: { tickangle: -25 },
-                yaxis: { title: "Distancia Euclidiana" },
+                xaxis: { ...(BASE_LAYOUT.xaxis ?? {}), tickangle: -25 },
+                yaxis: { ...(BASE_LAYOUT.yaxis ?? {}), title: "Distancia Euclidiana" },
+                annotations: distanceAnnotations,
               }}
-              config={barConfig}
+              config={BASE_CONFIG}
               style={{ width: "100%", height: "100%" }}
             />
-          </div>
+          </div>}
         </div>
 
         {/* ── SCORE DE PROXIMIDADE ── */}
         <div className="bg-white rounded-xl border border-gray-200 p-7 shadow-sm">
-          <h2 className="text-sm font-extrabold text-[#231F20] mb-1">Score de Proximidade</h2>
-          <p className="text-xs text-gray-400 mb-4">Score = d- / (d+ + d-), ordenado pelo ranking final</p>
-          <div className="h-[360px]">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-extrabold text-[#231F20] mb-1">Score de Proximidade</h2>
+              <p className="text-xs text-gray-400 mb-4">Score = d- / (d+ + d-), ordenado pelo ranking final</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <ResultExplanation title="Score de Proximidade">
+                <p>
+                  O score C = d⁻ / (d⁺ + d⁻) resume as distâncias em um valor entre 0 e 1. Quanto mais perto de 1,
+                  mais próxima a alternativa está do ideal positivo.
+                </p>
+                <p className="mt-2">
+                  O ranking TOPSIS é a ordenação decrescente deste score. O limiar 0.5 separa alternativas mais próximas
+                  do PIS das mais próximas do NIS.
+                </p>
+              </ResultExplanation>
+              <button
+                onClick={() => setShowScores((state) => !state)}
+                className="text-xs font-semibold px-2 py-1 rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50"
+                aria-label={showScores ? "Minimizar score de proximidade" : "Expandir score de proximidade"}
+              >
+                {showScores ? "↓" : "↑"}
+              </button>
+            </div>
+          </div>
+          {showScores && <div className="mt-3" style={{ height: `${scoreChartHeight}px` }}>
             <Plot
               data={scorePlotData}
               layout={{
-                margin: { l: 110, r: 20, t: 20, b: 40 },
-                paper_bgcolor: "#ffffff",
-                plot_bgcolor: "#ffffff",
-                xaxis: { title: "Score de proximidade", range: [0, 1] },
+                ...BASE_LAYOUT,
+                margin: { l: 130, r: 24, t: 20, b: 40 },
+                xaxis: { ...(BASE_LAYOUT.xaxis ?? {}), title: "Score de proximidade", range: [0, 1] },
+                shapes: [
+                  {
+                    type: "line",
+                    x0: 0.5,
+                    x1: 0.5,
+                    y0: 0,
+                    y1: 1,
+                    xref: "x",
+                    yref: "paper",
+                    line: { color: "#94A3B8", width: 1.5, dash: "dash" },
+                  },
+                ],
+                annotations: [
+                  {
+                    x: 0.5,
+                    y: 1.04,
+                    xref: "x",
+                    yref: "paper",
+                    text: "limiar 0.5",
+                    showarrow: false,
+                    font: { size: 11, color: PALETTE.axisText },
+                  },
+                ],
               }}
-              config={barConfig}
+              config={BASE_CONFIG}
               style={{ width: "100%", height: "100%" }}
             />
-          </div>
+          </div>}
         </div>
 
         {/* ── CONTRIBUICAO POR CRITERIO ── */}
         <div className="bg-white rounded-xl border border-gray-200 p-7 shadow-sm">
-          <h2 className="text-sm font-extrabold text-[#231F20] mb-1">Contribuicao por Criterio</h2>
-          <p className="text-xs text-gray-400 mb-4">Heatmap da matriz ponderada e decomposicao de contribuicao para d+²</p>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-extrabold text-[#231F20] mb-1">Contribuicao por Criterio</h2>
+              <p className="text-xs text-gray-400 mb-4">Heatmap da matriz ponderada e decomposicao de contribuicao para d+²</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <ResultExplanation title="Contribuição por Critério">
+                <p>
+                  Esta seção mostra, por critério, como cada alternativa se comporta no espaço ponderado e quanto cada
+                  critério contribui para a distância ao ideal positivo.
+                </p>
+              </ResultExplanation>
+              <button
+                onClick={() => setShowContribution((state) => !state)}
+                className="text-xs font-semibold px-2 py-1 rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50"
+                aria-label={showContribution ? "Minimizar contribuição por critério" : "Expandir contribuição por critério"}
+              >
+                {showContribution ? "↓" : "↑"}
+              </button>
+            </div>
+          </div>
+          {showContribution && <>
+          <div className="flex flex-wrap gap-2 mb-3">
+            {criteriaForContribution.map((col, idx) => (
+              <span
+                key={`criterion-chip-${data.criteria_names[col]}`}
+                className="inline-flex items-center gap-1 rounded-full bg-slate-50 border border-slate-200 px-2 py-1 text-[11px] text-slate-600"
+              >
+                <span
+                  className="inline-block w-2 h-2 rounded-full"
+                  style={{ backgroundColor: PALETTE.criteria[idx % PALETTE.criteria.length] }}
+                />
+                {data.criteria_names[col]}
+              </span>
+            ))}
+          </div>
 
-          <div className="h-[420px] mb-8">
+          <div className="flex items-start justify-between gap-3 mb-1">
+            <p className="text-sm font-semibold text-[#231F20]">Heatmap da matriz ponderada</p>
+            <ResultExplanation title="Heatmap da Matriz Ponderada">
+              <p>
+                Cada célula representa o valor de uma alternativa em um critério após normalização e ponderação.
+                Tons mais escuros indicam valores mais altos.
+              </p>
+              <p className="mt-2">
+                Use esta visão para identificar rapidamente critérios em que cada alternativa se destaca ou perde.
+              </p>
+            </ResultExplanation>
+          </div>
+
+          <div className="mt-3 mb-8" style={{ height: `${heatmapHeight}px` }}>
             <Plot
               data={[
                 {
                   type: "heatmap",
-                  x: data.criteria_names,
+                  x: criteriaForContribution.map((col) => data.criteria_names[col]),
                   y: metrics.map((item) => item.name),
                   z: heatmapZ,
-                  colorscale: "RdYlGn",
+                  zmin: 0,
+                  colorscale: heatColorscale,
                   customdata: heatmapCustom,
                   hovertemplate: "%{y} × %{x}: %{z:.4f}<br>%{customdata}<extra></extra>",
                 },
               ]}
               layout={{
+                ...BASE_LAYOUT,
                 margin: { l: 110, r: 30, t: 20, b: 60 },
-                paper_bgcolor: "#ffffff",
-                plot_bgcolor: "#ffffff",
-                xaxis: { side: "top" },
-                yaxis: { autorange: "reversed" },
+                xaxis: { ...(BASE_LAYOUT.xaxis ?? {}), side: "top" },
+                yaxis: { ...(BASE_LAYOUT.yaxis ?? {}), autorange: "reversed" },
                 annotations: heatmapAnnotations,
                 shapes: winnerSeparator,
               }}
-              config={{ responsive: true, displayModeBar: false }}
+              config={BASE_CONFIG}
               style={{ width: "100%", height: "100%" }}
             />
           </div>
 
-          <div className="h-[380px]">
+          <div className="flex items-start justify-between gap-3 mb-1">
+            <p className="text-sm font-semibold text-[#231F20]">Decomposicao da distancia por criterio</p>
+            <ResultExplanation title="Decomposição de d+ por Critério">
+              <p>
+                Cada segmento empilhado mostra a contribuição quadrática de um critério para d⁺² da alternativa.
+              </p>
+              <p className="mt-2">
+                Segmentos maiores indicam critérios que mais afastam a alternativa do ideal positivo.
+              </p>
+            </ResultExplanation>
+          </div>
+
+          <div className="h-[300px] mt-3">
             <Plot
               data={contributionTraces}
               layout={{
+                ...BASE_LAYOUT,
                 barmode: "stack",
                 margin: { l: 70, r: 20, t: 20, b: 70 },
-                paper_bgcolor: "#ffffff",
-                plot_bgcolor: "#ffffff",
-                yaxis: { title: "Contribuicao quadratica para d+² por criterio" },
+                yaxis: { ...(BASE_LAYOUT.yaxis ?? {}), title: "Contribuicao quadratica para d+² por criterio" },
                 legend: { orientation: "h", x: 0, y: 1.15 },
               }}
-              config={{ responsive: true, displayModeBar: false }}
+              config={BASE_CONFIG}
               style={{ width: "100%", height: "100%" }}
             />
           </div>
+          </>}
         </div>
 
         {/* ── VISUALIZACAO ESPACIAL ADAPTATIVA ── */}
         <div className="bg-white rounded-xl border border-gray-200 p-7 shadow-sm">
-          <h2 className="text-sm font-extrabold text-[#231F20] mb-1">{spatialSection.title}</h2>
-          <p className="text-xs text-gray-400 mb-4">{spatialSection.subtitle}</p>
-          <div className="h-[460px]">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-extrabold text-[#231F20] mb-1">{spatialSection.title}</h2>
+              <p className="text-xs text-gray-400 mb-4">{spatialSection.subtitle}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <ResultExplanation title="Visualização Espacial">
+                <p>
+                  Esta visualização posiciona alternativas no espaço de critérios para facilitar comparação visual de
+                  proximidade com PIS e NIS. O modo muda conforme a dimensionalidade dos critérios.
+                </p>
+              </ResultExplanation>
+              <button
+                onClick={() => setShowSpatial((state) => !state)}
+                className="text-xs font-semibold px-2 py-1 rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50"
+                aria-label={showSpatial ? "Minimizar visualização espacial" : "Expandir visualização espacial"}
+              >
+                {showSpatial ? "↓" : "↑"}
+              </button>
+            </div>
+          </div>
+          {showSpatial && <div className="h-[460px]">
             <Plot
               data={spatialSection.data}
               layout={{
+                ...BASE_LAYOUT,
                 margin: { l: 55, r: 20, t: 20, b: 45 },
-                paper_bgcolor: "#ffffff",
-                plot_bgcolor: "#ffffff",
                 showlegend: true,
                 legend: { orientation: "h", x: 0, y: 1.1 },
                 ...spatialSection.layout,
               }}
-              config={{ responsive: true }}
+              config={BASE_CONFIG}
               style={{ width: "100%", height: "100%" }}
             />
-          </div>
+          </div>}
         </div>
 
         {/* ── ANALISE DE SENSIBILIDADE DE PESOS ── */}
         <div className="bg-white rounded-xl border border-gray-200 p-7 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <div>
-              <h2 className="text-sm font-extrabold text-[#231F20] mb-1">Analise de Sensibilidade de Pesos</h2>
+              <h2 className="text-lg font-extrabold text-[#231F20] mb-1">Analise de Sensibilidade de Pesos</h2>
               <p className="text-xs text-gray-400">Ajuste os pesos e acompanhe o ranking simulado em tempo real</p>
             </div>
-            <button
-              onClick={() => setEditedWeights(null)}
-              className="text-xs font-bold px-3 py-2 rounded-md border border-gray-200 hover:bg-gray-50 transition"
-            >
-              Resetar pesos originais
-            </button>
+            <div className="flex items-center gap-2">
+              <ResultExplanation title="Análise de Sensibilidade">
+                <p>
+                  O ranking TOPSIS depende dos pesos. Aqui você testa cenários &quot;e se&quot; ajustando pesos e recalculando
+                  localmente sem chamar a API.
+                </p>
+                <p className="mt-2">
+                  Se houver inversão de ranking, a decisão é sensível e merece revisão de pesos.
+                </p>
+              </ResultExplanation>
+              <button
+                onClick={() => setShowSensitivity((state) => !state)}
+                className="text-xs font-semibold px-2 py-1 rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50"
+                aria-label={showSensitivity ? "Minimizar análise de sensibilidade" : "Expandir análise de sensibilidade"}
+              >
+                {showSensitivity ? "↓" : "↑"}
+              </button>
+              <button
+                onClick={() => setEditedWeights(null)}
+                className="text-xs font-bold px-3 py-2 rounded-md border border-gray-200 hover:bg-gray-50 transition"
+              >
+                Resetar pesos originais
+              </button>
+            </div>
           </div>
+          {showSensitivity && <>
 
           <div className="grid gap-3 mb-6">
             {data.criteria_names.map((name, idx) => (
@@ -1197,7 +1506,15 @@ export default function ResultPage() {
 
           <div className="grid lg:grid-cols-2 gap-6">
             <div className="border border-gray-100 rounded-lg p-4">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">Ranking simulado</h3>
+              <div className="flex items-start justify-between gap-2 mb-3">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">Ranking simulado</h3>
+                <ResultExplanation title="Ranking Simulado">
+                  <p>
+                    Mostra a nova ordem das alternativas para os pesos ajustados, incluindo variação de score em
+                    relação ao cenário original.
+                  </p>
+                </ResultExplanation>
+              </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -1232,37 +1549,57 @@ export default function ResultPage() {
             </div>
 
             <div className="border border-gray-100 rounded-lg p-4">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">Score simulado</h3>
+              <div className="flex items-start justify-between gap-2 mb-3">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">Score simulado</h3>
+                <ResultExplanation title="Score Simulado">
+                  <p>
+                    Exibe visualmente os novos coeficientes de proximidade após ajustes de peso para facilitar comparação
+                    rápida entre alternativas.
+                  </p>
+                </ResultExplanation>
+              </div>
               <div className="h-[220px]">
                 <Plot
                   data={simulatedBars}
                   layout={{
+                    ...BASE_LAYOUT,
                     margin: { l: 110, r: 20, t: 10, b: 30 },
-                    paper_bgcolor: "#ffffff",
-                    plot_bgcolor: "#ffffff",
-                    xaxis: { range: [0, 1], title: "Score" },
+                    xaxis: { ...(BASE_LAYOUT.xaxis ?? {}), range: [0, 1], title: "Score" },
                   }}
-                  config={{ responsive: true, displayModeBar: false }}
+                  config={BASE_CONFIG}
                   style={{ width: "100%", height: "100%" }}
                 />
               </div>
             </div>
           </div>
+          </>}
         </div>
 
         {/* ── MATRIZES ── */}
-        <details className="bg-white rounded-xl border border-gray-200 shadow-sm group">
-          <summary className="px-7 py-5 cursor-pointer text-sm font-extrabold text-[#231F20] flex items-center justify-between select-none">
-            Ver matrizes intermediárias (PIS, NIS, normalizada, ponderada)
-            <span className="text-gray-400 text-lg group-open:rotate-180 transition-transform">
-              ↓
-            </span>
-          </summary>
-          <div className="px-7 pb-7 pt-2 grid gap-6 border-t border-gray-100">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+          <div className="px-7 py-5 flex items-center justify-between border-b border-gray-100">
+            <h2 className="text-sm font-extrabold text-[#231F20]">Ver matrizes intermediárias (PIS, NIS, normalizada, ponderada)</h2>
+            <button
+              onClick={() => setShowMatrices((state) => !state)}
+              className="text-xs font-semibold px-2 py-1 rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50"
+              aria-label={showMatrices ? "Minimizar matrizes intermediárias" : "Expandir matrizes intermediárias"}
+            >
+              {showMatrices ? "↓" : "↑"}
+            </button>
+          </div>
+          {showMatrices && <div className="px-7 pb-7 pt-4 grid gap-6">
             <div>
-              <p className="text-xs font-bold text-[#DB1E2F] uppercase tracking-[2px] mb-3">
-                Matriz Normalizada
-              </p>
+              <div className="flex items-start justify-between gap-2 mb-3">
+                <p className="text-xs font-bold text-[#DB1E2F] uppercase tracking-[2px]">
+                  Matriz Normalizada
+                </p>
+                <ResultExplanation title="Matriz Normalizada">
+                  <p>
+                    Mostra os valores dos critérios após normalização, removendo diferenças de escala entre unidades.
+                  </p>
+                  <p className="mt-2">Isso permite comparar critérios originalmente medidos em escalas diferentes.</p>
+                </ResultExplanation>
+              </div>
               <div className="overflow-auto max-h-80 border border-gray-100 rounded-lg">
                 <table className="w-full text-xs">
                   <thead className="sticky top-0 bg-gray-50">
@@ -1292,9 +1629,17 @@ export default function ResultPage() {
             </div>
 
             <div>
-              <p className="text-xs font-bold text-[#DB1E2F] uppercase tracking-[2px] mb-3">
-                Matriz Ponderada
-              </p>
+              <div className="flex items-start justify-between gap-2 mb-3">
+                <p className="text-xs font-bold text-[#DB1E2F] uppercase tracking-[2px]">
+                  Matriz Ponderada
+                </p>
+                <ResultExplanation title="Matriz Ponderada">
+                  <p>
+                    Apresenta a matriz normalizada após aplicação dos pesos definidos pelo usuário.
+                  </p>
+                  <p className="mt-2">Critérios com maior peso exercem maior influência no resultado final.</p>
+                </ResultExplanation>
+              </div>
               <div className="overflow-auto max-h-80 border border-gray-100 rounded-lg">
                 <table className="w-full text-xs">
                   <thead className="sticky top-0 bg-gray-50">
@@ -1341,9 +1686,17 @@ export default function ResultPage() {
 
             <div className="grid lg:grid-cols-2 gap-6">
               <div>
-                <p className="text-xs font-bold text-[#DB1E2F] uppercase tracking-[2px] mb-3">
-                  Solução Ideal Positiva (PIS)
-                </p>
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <p className="text-xs font-bold text-[#DB1E2F] uppercase tracking-[2px]">
+                    Solução Ideal Positiva (PIS)
+                  </p>
+                  <ResultExplanation title="PIS">
+                    <p>
+                      A PIS é composta pelos melhores valores por critério e funciona como referência de excelência.
+                    </p>
+                    <p className="mt-2">Quanto mais próxima a alternativa da PIS, mais desejável ela tende a ser.</p>
+                  </ResultExplanation>
+                </div>
                 <div className="bg-gray-50 rounded-lg p-4 space-y-1">
                   {data.criteria_names.map((criterion, idx) => (
                     <div key={`pis-list-${criterion}`} className="flex justify-between text-xs">
@@ -1354,9 +1707,17 @@ export default function ResultPage() {
                 </div>
               </div>
               <div>
-                <p className="text-xs font-bold text-[#DB1E2F] uppercase tracking-[2px] mb-3">
-                  Solução Ideal Negativa (NIS)
-                </p>
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <p className="text-xs font-bold text-[#DB1E2F] uppercase tracking-[2px]">
+                    Solução Ideal Negativa (NIS)
+                  </p>
+                  <ResultExplanation title="NIS">
+                    <p>
+                      A NIS representa o pior cenário por critério e serve como referência do desempenho indesejável.
+                    </p>
+                    <p className="mt-2">Quanto mais distante da NIS, melhor tende a ser a alternativa.</p>
+                  </ResultExplanation>
+                </div>
                 <div className="bg-gray-50 rounded-lg p-4 space-y-1">
                   {data.criteria_names.map((criterion, idx) => (
                     <div key={`nis-list-${criterion}`} className="flex justify-between text-xs">
@@ -1370,9 +1731,17 @@ export default function ResultPage() {
 
             <div className="grid lg:grid-cols-2 gap-6">
               <div>
-                <p className="text-xs font-bold text-[#DB1E2F] uppercase tracking-[2px] mb-3">
-                  Componentes de d+ (delta_plus)
-                </p>
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <p className="text-xs font-bold text-[#DB1E2F] uppercase tracking-[2px]">
+                    Componentes de d+ (delta_plus)
+                  </p>
+                  <ResultExplanation title="Componentes de d+">
+                    <p>
+                      Cada célula mostra a contribuição quadrática por critério para a distância ao ideal positivo.
+                    </p>
+                    <p className="mt-2">A soma das contribuições, após raiz quadrada, resulta em d⁺.</p>
+                  </ResultExplanation>
+                </div>
                 <div className="overflow-auto border border-gray-100 rounded-lg max-h-72">
                   <table className="w-full text-xs">
                     <thead className="sticky top-0 bg-gray-50">
@@ -1406,9 +1775,17 @@ export default function ResultPage() {
               </div>
 
               <div>
-                <p className="text-xs font-bold text-[#DB1E2F] uppercase tracking-[2px] mb-3">
-                  Componentes de d- (delta_minus)
-                </p>
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <p className="text-xs font-bold text-[#DB1E2F] uppercase tracking-[2px]">
+                    Componentes de d- (delta_minus)
+                  </p>
+                  <ResultExplanation title="Componentes de d-">
+                    <p>
+                      Cada célula mostra a contribuição quadrática por critério para a distância ao ideal negativo.
+                    </p>
+                    <p className="mt-2">A soma das contribuições, após raiz quadrada, resulta em d⁻.</p>
+                  </ResultExplanation>
+                </div>
                 <div className="overflow-auto border border-gray-100 rounded-lg max-h-72">
                   <table className="w-full text-xs">
                     <thead className="sticky top-0 bg-gray-50">
@@ -1441,8 +1818,8 @@ export default function ResultPage() {
                 </div>
               </div>
             </div>
-          </div>
-        </details>
+          </div>}
+        </div>
 
       </div>
 
