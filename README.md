@@ -41,7 +41,13 @@ Artigos complementares:
 - ✅ Suporte a critérios de **benefício** e **custo**
 - ✅ Três métodos de **normalização** (vetorial, linear, min-max)
 - ✅ Cálculo do **ranking** com coeficiente de proximidade `CCi`
-- ✅ Visualização com **gráficos** (Recharts)
+- ✅ Visualizações analíticas com **gráficos interativos** (Plotly)
+- ✅ Visualização **3D** com PIS/NIS e distâncias no `/about` (Three.js)
+- ✅ Visualização espacial adaptativa no `/result`:
+  - 2 critérios → plano 2D
+  - 3 critérios → scatter 3D
+  - 4–6 critérios → PCA 3D
+  - 7+ critérios → coordenadas paralelas
 - ✅ **Exportação CSV** dos resultados
 - ✅ API REST documentada com **OpenAPI/Swagger**
 
@@ -54,22 +60,25 @@ topsis-decision-web/
 ├── backend/          # FastAPI + uv (Python 3.11)
 │   ├── app/
 │   │   ├── topsis.py    # algoritmo TOPSIS (numpy)
+│   │   ├── services/    # serviços auxiliares (ex.: projeções)
 │   │   ├── schemas.py   # Pydantic
 │   │   └── main.py      # endpoints REST
 │   └── tests/
 └── frontend/         # Next.js 16 + React 19 + TailwindCSS
-    └── src/app/
-        ├── page.tsx       # landing
-        ├── about/         # sobre o método
-        ├── decision/      # formulário interativo
-        └── result/        # ranking + gráficos
+    └── src/
+        ├── app/
+        │   ├── page.tsx       # landing
+        │   ├── about/         # explicação do método + viewer 3D
+        │   ├── decision/      # formulário interativo
+        │   └── result/        # ranking + dashboards analíticos
+        └── components/        # viewers 3D e componentes reutilizáveis
 ```
 
 ### Stack técnico
 
 | Camada | Tecnologia |
 |---|---|
-| Frontend | Next.js 16, React 19, TailwindCSS, Recharts |
+| Frontend | Next.js 16, React 19, TailwindCSS, Plotly.js, Three.js |
 | Backend | FastAPI, Pydantic, NumPy |
 | Build | uv (Python), npm (Node 20+) |
 | Deploy frontend | Vercel |
@@ -107,11 +116,33 @@ npm run dev
 
 App disponível em `http://localhost:3000`.
 
+Para validação de tipo/build:
+
+```bash
+cd frontend
+npm run build
+```
+
 ### Testes
 
 ```bash
 cd backend
 uv run pytest tests/ -v
+```
+
+---
+
+## 📦 Dependências Python
+
+Este projeto **não precisa** de `requirements.txt` para funcionamento local,
+pois o backend usa `uv` com dependências declaradas em
+`backend/pyproject.toml` e resolvidas em `backend/uv.lock`.
+
+Use sempre:
+
+```bash
+cd backend
+uv sync
 ```
 
 ---

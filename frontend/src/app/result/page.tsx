@@ -456,6 +456,47 @@ function projectPca2(points: number[][]): { projected: number[][]; explained: nu
   return { projected, explained: Math.max(0, Math.min(100, explained)) };
 }
 
+function projectPca3(points: number[][]): { projected: number[][]; explained: number } {
+  if (!points.length || !points[0]?.length) {
+    return { projected: [], explained: 0 };
+  }
+
+  const rows = points.length;
+  const cols = points[0].length;
+  const means = Array.from({ length: cols }, (_, col) => {
+    const sum = points.reduce((acc, row) => acc + row[col], 0);
+    return sum / rows;
+  });
+  const centered = points.map((row) => row.map((value, col) => value - means[col]));
+
+  const covariance = Array.from({ length: cols }, () => Array(cols).fill(0));
+  for (let i = 0; i < cols; i += 1) {
+    for (let j = 0; j < cols; j += 1) {
+      const sum = centered.reduce((acc, row) => acc + row[i] * row[j], 0);
+      covariance[i][j] = sum / Math.max(rows - 1, 1);
+    }
+  }
+
+  const first = powerIteration(covariance);
+  const deflated1 = covariance.map((row, i) =>
+    row.map((value, j) => value - first.value * first.vector[i] * first.vector[j]),
+  );
+  const second = powerIteration(deflated1);
+  const deflated2 = deflated1.map((row, i) =>
+    row.map((value, j) => value - second.value * second.vector[i] * second.vector[j]),
+  );
+  const third = powerIteration(deflated2);
+
+  const components = [first.vector, second.vector, third.vector];
+  const projected = centered.map((row) =>
+    components.map((component) => row.reduce((acc, value, idx) => acc + value * component[idx], 0)),
+  );
+
+  const trace = covariance.reduce((acc, row, idx) => acc + row[idx], 0);
+  const explained = trace > 0 ? ((first.value + second.value + third.value) / trace) * 100 : 0;
+  return { projected, explained: Math.max(0, Math.min(100, explained)) };
+}
+
 export default function ResultPage() {
   const data = useSessionStorageJson<TopsisResponse>("topsis:result");
   const request = useSessionStorageJson<TopsisRequest>("topsis:request");
@@ -947,7 +988,7 @@ export default function ResultPage() {
 
     if (criteriaCount <= 6) {
       const allPoints = [...metrics.map((item) => item.values), data.pis, data.nis];
-      const { projected, explained } = projectPca2(allPoints);
+      const { projected, explained } = projectPca3(allPoints);
       const pisProjection = projected[metrics.length];
       const nisProjection = projected[metrics.length + 1];
       const altProjections = projected.slice(0, metrics.length);
@@ -957,73 +998,83 @@ export default function ResultPage() {
 
       const lineToPisX = altProjections.flatMap((point) => [point[0], pisProjection[0], null]);
       const lineToPisY = altProjections.flatMap((point) => [point[1], pisProjection[1], null]);
+      const lineToPisZ = altProjections.flatMap((point) => [point[2], pisProjection[2], null]);
       const lineToNisX = altProjections.flatMap((point) => [point[0], nisProjection[0], null]);
       const lineToNisY = altProjections.flatMap((point) => [point[1], nisProjection[1], null]);
+      const lineToNisZ = altProjections.flatMap((point) => [point[2], nisProjection[2], null]);
 
       return {
         title: "Visualizacao Espacial PCA",
-        subtitle: `4-6 criterios detectados: PCA em 2D (variancia explicada: ${explained.toFixed(2)}%)`,
+        subtitle: `4-6 criterios detectados: PCA 3D interativo (variancia explicada: ${explained.toFixed(2)}%)`,
         data: [
           {
-            type: "scatter",
+            type: "scatter3d",
             mode: "lines",
             name: "Ligacao ao PIS",
             x: lineToPisX,
             y: lineToPisY,
+            z: lineToPisZ,
             line: { color: PCA_CONTRAST_COLORS.toPis, width: 1.8, dash: "dot" },
             hoverinfo: "skip",
           },
           {
-            type: "scatter",
+            type: "scatter3d",
             mode: "lines",
             name: "Ligacao ao NIS",
             x: lineToNisX,
             y: lineToNisY,
+            z: lineToNisZ,
             line: { color: PCA_CONTRAST_COLORS.toNis, width: 1.8, dash: "dot" },
             hoverinfo: "skip",
           },
           {
-            type: "scatter",
+            type: "scatter3d",
             mode: "markers+text",
             name: "Alternativas",
             x: altProjections.map((point) => point[0]),
             y: altProjections.map((point) => point[1]),
+            z: altProjections.map((point) => point[2]),
             text: metrics.map((item) => `${item.rank}o`),
             textposition: "top center",
             marker: {
               color: pcaMarkerColors,
-              size: metrics.map((item) => item.size),
+              size: metrics.map((item) => item.size / 3.2),
               line: { width: 1, color: "#0f172a" },
             },
             hovertext: metrics.map(baseHover),
             hoverinfo: "text",
           },
           {
-            type: "scatter",
+            type: "scatter3d",
             mode: "markers+text",
             name: "PIS",
             x: [pisProjection[0]],
             y: [pisProjection[1]],
+            z: [pisProjection[2]],
             text: ["★ PIS"],
-            textposition: "top right",
-            marker: { color: PCA_CONTRAST_COLORS.pis, size: 18, symbol: "star" },
+            marker: { color: PCA_CONTRAST_COLORS.pis, size: 7, symbol: "diamond" },
             hovertemplate: "PIS projetado em PCA<extra></extra>",
           },
           {
-            type: "scatter",
+            type: "scatter3d",
             mode: "markers+text",
             name: "NIS",
             x: [nisProjection[0]],
             y: [nisProjection[1]],
+            z: [nisProjection[2]],
             text: ["✕ NIS"],
-            textposition: "bottom right",
-            marker: { color: PCA_CONTRAST_COLORS.nis, size: 16, symbol: "x" },
+            marker: { color: PCA_CONTRAST_COLORS.nis, size: 7, symbol: "cross" },
             hovertemplate: "NIS projetado em PCA<extra></extra>",
           },
         ],
         layout: {
-          xaxis: { title: "PCA 1" },
-          yaxis: { title: "PCA 2" },
+          scene: {
+            xaxis: { title: "PCA 1" },
+            yaxis: { title: "PCA 2" },
+            zaxis: { title: "PCA 3" },
+            dragmode: "orbit",
+            aspectmode: "cube",
+          },
         },
       };
     }
@@ -1298,7 +1349,7 @@ export default function ResultPage() {
                   },
                 ],
               }}
-              config={BASE_CONFIG}
+              config={{ ...BASE_CONFIG, scrollZoom: true }}
               style={{ width: "100%", height: "100%" }}
             />
           </div>}
