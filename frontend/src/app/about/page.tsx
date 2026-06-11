@@ -229,7 +229,7 @@ export default function About() {
       {/* ── HERO ── */}
       <section className="bg-[#231F20] px-4 sm:px-6 lg:px-10 pt-10 sm:pt-14 lg:pt-16 pb-12 sm:pb-16 lg:pb-20 relative overflow-hidden">
         <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-[#DB1E2F] via-[#DB1E2F]/30 to-transparent" />
-        <div className="max-w-4xl">
+        <div className="max-w-5xl mx-auto">
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white mb-4">
             Sobre o <span className="text-[#DB1E2F]">TOPSIS</span>
           </h1>
@@ -241,7 +241,7 @@ export default function About() {
       </section>
 
       {/* ── CONTEÚDO ── */}
-      <div className="px-4 sm:px-6 lg:px-10 py-8 sm:py-12 lg:py-16 max-w-4xl">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-10 py-8 sm:py-12 lg:py-16">
 
         {/* Definição */}
         <div className="bg-red-50 border-l-4 border-[#DB1E2F] rounded-r-xl px-8 py-7 mb-14">
@@ -277,14 +277,14 @@ export default function About() {
 
           <div className="grid sm:grid-cols-2 gap-4 mb-7">
             {fundamentals.map((item) => (
-              <div key={item.term} className="bg-white border border-gray-200 rounded-xl p-5">
+              <div key={item.term} className="bg-white border border-gray-200 rounded-xl shadow-sm p-5">
                 <p className="text-xs font-black text-[#DB1E2F] tracking-[1.5px] uppercase mb-2">{item.term}</p>
                 <p className="text-sm text-gray-600 leading-relaxed">{item.description}</p>
               </div>
             ))}
           </div>
 
-          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+          <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
             <div className="px-5 py-3 border-b border-gray-200 bg-gray-50">
               <p className="text-sm font-bold text-[#231F20]">Regras para critério de benefício e custo</p>
             </div>
@@ -335,7 +335,7 @@ export default function About() {
         </div>
 
         {/* Por que dois pontos de referência */}
-        <div className="mb-14 bg-white border border-gray-200 rounded-xl px-8 py-8">
+        <div className="mb-14 bg-white border border-gray-200 rounded-xl shadow-sm px-8 py-8">
           <h2 className="text-2xl font-extrabold text-[#231F20] mb-1">
             Por que dois pontos de referência?
           </h2>
@@ -370,7 +370,7 @@ export default function About() {
             {methodSteps.map((s) => (
               <div
                 key={s.n}
-                className="flex flex-col sm:flex-row gap-4 sm:gap-5 items-start bg-white border border-gray-200 rounded-xl p-6 hover:shadow-md transition"
+                className="flex flex-col sm:flex-row gap-4 sm:gap-5 items-start bg-white border border-gray-200 rounded-xl shadow-sm p-6 hover:shadow-md transition"
               >
                 <div className="min-w-[44px] h-11 bg-[#DB1E2F] text-white rounded-lg flex items-center justify-center font-black text-base">
                   {s.n}
@@ -419,7 +419,7 @@ export default function About() {
             Custo e prazo são critérios de custo; qualidade é critério de benefício.
           </p>
 
-          <div className="overflow-x-auto bg-white border border-gray-200 rounded-xl">
+          <div className="overflow-x-auto bg-white border border-gray-200 rounded-xl shadow-sm">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-gray-500">
                 <tr>
@@ -468,7 +468,7 @@ export default function About() {
           </p>
           <div className="grid sm:grid-cols-2 gap-4">
             {interpretationTips.map((tip) => (
-              <div key={tip} className="bg-white border border-gray-200 rounded-xl p-5">
+              <div key={tip} className="bg-white border border-gray-200 rounded-xl shadow-sm p-5">
                 <p className="text-sm text-gray-600 leading-relaxed">{tip}</p>
               </div>
             ))}
@@ -477,7 +477,7 @@ export default function About() {
 
         {/* Vantagens e limitações */}
         <div className="mb-14 grid sm:grid-cols-2 gap-5">
-          <div className="bg-white border border-gray-200 rounded-xl p-6">
+          <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
             <h3 className="text-sm font-black text-[#231F20] uppercase tracking-[2px] mb-4">Vantagens</h3>
             <ul className="space-y-3">
               {strengths.map((item) => (
@@ -485,7 +485,7 @@ export default function About() {
               ))}
             </ul>
           </div>
-          <div className="bg-white border border-gray-200 rounded-xl p-6">
+          <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
             <h3 className="text-sm font-black text-[#231F20] uppercase tracking-[2px] mb-4">Limitacoes</h3>
             <ul className="space-y-3">
               {limitations.map((item) => (
@@ -539,7 +539,7 @@ export default function About() {
             {stack.map((s) => (
               <div
                 key={s.label}
-                className="bg-white border border-gray-200 rounded-xl p-6 text-center"
+                className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 text-center"
               >
                 <p className="text-[10px] font-black text-[#DB1E2F] tracking-[2px] uppercase mb-2">
                   {s.label}
