@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import csv
 import io
+import os
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -28,10 +29,18 @@ app = FastAPI(
     version="0.1.0",
 )
 
-#confirguração de CORS para permitir requisições do frontend
+# CORS: origens permitidas vêm de ALLOWED_ORIGINS (lista separada por
+# vírgula). Mantém localhost:3000 como fallback para dev local.
+_default_origins = "http://localhost:3000"
+_allowed_origins = [
+    o.strip()
+    for o in os.getenv("ALLOWED_ORIGINS", _default_origins).split(",")
+    if o.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=_allowed_origins,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
