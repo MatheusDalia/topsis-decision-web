@@ -255,11 +255,19 @@ export default function Home() {
       </section>
 
       {/* ── FOOTER ── */}
-      <footer className="bg-[#111] px-10 py-8 flex justify-between items-center border-t border-white/5">
-        <p className="text-gray-600 text-xs">© 2026 TOPSIS Web | Projeto SAD</p>
-        <div className="flex items-center gap-2 text-gray-600 text-xs">
-          <span className="w-2 h-2 bg-[#DB1E2F] rounded-full" />
-          Centro de Informática · UFPE
+      <footer className="bg-[#111] px-10 py-8 border-t border-white/5">
+        <div className="flex justify-between items-center mb-4">
+          <p className="text-gray-600 text-xs">© 2026 TOPSIS Web | Projeto SAD</p>
+          <div className="flex items-center gap-2 text-gray-600 text-xs">
+            <span className="w-2 h-2 bg-[#DB1E2F] rounded-full" />
+            Centro de Informática · UFPE
+          </div>
+        </div>
+        <div className="border-t border-white/5 pt-4">
+          <p className="text-gray-600 text-[10px] uppercase tracking-widest mb-2">Grupo</p>
+          <p className="text-gray-500 text-xs">
+            José Luiz Silva · Júlia Nunes · Matheus Dalia · Mayara Gomes
+          </p>
         </div>
       </footer>
 
