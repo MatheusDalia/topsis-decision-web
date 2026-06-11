@@ -35,6 +35,37 @@ Artigos complementares:
 
 ---
 
+## 🎯 Como o projeto estende o artigo base
+
+O artigo de **Chen (2000)** propõe o **Fuzzy TOPSIS** com variáveis
+linguísticas para decisões em grupo. Para este sistema didático,
+adotamos o **exemplo de seleção de analista de sistemas (Seção 4)**
+como base de validação, aplicando o TOPSIS clássico sobre os valores
+**crisp** (centros dos números fuzzy triangulares) — abordagem comum
+em ensino quando não há especialistas linguísticos disponíveis.
+
+A partir desse núcleo, o projeto **estende** o trabalho original em:
+
+- **Interface Web acessível**: usuários sem formação em MCDM
+  configuram critérios, alternativas e pesos via formulário interativo,
+  sem precisar montar a matriz manualmente.
+- **Três métodos de normalização** lado a lado (vetorial, linear e
+  min-max), permitindo ao usuário comparar o impacto da escolha no
+  ranking — o artigo original usa apenas normalização linear.
+- **Visualizações analíticas** dos resultados com Plotly: gráficos de
+  barras, distâncias d⁺/d⁻, ranking comparativo e heatmap da matriz
+  ponderada.
+- **Visualização geométrica 3D** (Three.js) do espaço de decisão com
+  PIS, NIS e alternativas plotados, incluindo redução por PCA para
+  problemas com 4+ critérios — algo ausente em apresentações textuais
+  do método.
+- **Validação automatizada** (10/10 testes) reproduzindo o ranking
+  esperado do artigo (A2 ≻ A3 ≻ A1).
+- **API REST documentada** com Swagger/OpenAPI, expondo o algoritmo
+  como serviço reutilizável.
+
+---
+
 ## ✨ Funcionalidades
 
 - ✅ Cadastro dinâmico de **alternativas** e **critérios**
@@ -191,6 +222,23 @@ Configurar variável: `NEXT_PUBLIC_API_URL = <URL pública do backend>`.
 
 ### Backend (alternativa: Render)
 Configuração de fallback em `render.yaml` — basta apontar para o repo.
+
+---
+
+## ✅ Conformidade com requisitos da disciplina
+
+| Requisito (Fase 2) | Status |
+|---|---|
+| Aplicação Web completa | ✅ Next.js 16 + FastAPI |
+| Implementação completa do algoritmo MCDM | ✅ TOPSIS clássico, 3 normalizações, validado em testes |
+| Interface intuitiva para alternativas e critérios | ✅ Formulário dinâmico em `/decision` |
+| Visualização de resultados (gráficos + ranking) | ✅ Plotly + Three.js em `/result` e `/about` |
+| Exportação dos resultados (PDF ou CSV) | ✅ CSV via `POST /api/v1/topsis/export.csv` |
+| API REST documentada (opcional) | ✅ OpenAPI/Swagger em `/docs` |
+| Replicação + extensão de artigo científico real | ✅ Ver seção *Como o projeto estende o artigo base* |
+| Repositório Git público | ✅ [github.com/MatheusDalia/topsis-decision-web](https://github.com/MatheusDalia/topsis-decision-web) |
+| Deploy em produção | ⏳ Em andamento (Vercel + Railway) |
+| Slides da apresentação final | ⏳ Em andamento |
 
 ---
 
