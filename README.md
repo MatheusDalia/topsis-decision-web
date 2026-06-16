@@ -30,8 +30,7 @@ Artigos complementares:
 | Recurso | URL |
 |---|---|
 | Repositório | https://github.com/MatheusDalia/topsis-decision-web |
-| Aplicação (Vercel) | _(adicionar após deploy)_ |
-| API (Railway) | _(adicionar após deploy)_ — Swagger em `/docs` |
+| Aplicação (Vercel) | https://topsis-decision-web.vercel.app |
 
 ---
 
@@ -237,8 +236,8 @@ Configuração de fallback em `render.yaml` — basta apontar para o repo.
 | API REST documentada (opcional) | ✅ OpenAPI/Swagger em `/docs` |
 | Replicação + extensão de artigo científico real | ✅ Ver seção *Como o projeto estende o artigo base* |
 | Repositório Git público | ✅ [github.com/MatheusDalia/topsis-decision-web](https://github.com/MatheusDalia/topsis-decision-web) |
-| Deploy em produção | ⏳ Em andamento (Vercel + Railway) |
-| Slides da apresentação final | ⏳ Em andamento |
+| Deploy em produção | ✅ [https://topsis-decision-web.vercel.app](https://topsis-decision-web.vercel.app) |
+| Slides da apresentação final | ✅ [https://canva.link/bth9sakrgzyygk8](https://canva.link/bth9sakrgzyygk8) |
 
 ---
 
