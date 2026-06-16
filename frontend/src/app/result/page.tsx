@@ -845,8 +845,8 @@ export default function ResultPage() {
       const lineToNisY = metrics.flatMap((item) => [item.values[1], data.nis[1], null]);
 
       return {
-        title: "Visualização Espacial 2D",
-        subtitle: "2 critérios detectados: scatter 2D com PIS/NIS e linhas de distância",
+        title: "Visualização espacial do espaço de decisão",
+        subtitle: "Plano 2D — cada ponto é uma alternativa, cada eixo é um critério.",
         data: [
           {
             type: "scatter",
@@ -921,8 +921,8 @@ export default function ResultPage() {
       const lineToNisZ = metrics.flatMap((item) => [item.values[2], data.nis[2], null]);
 
       return {
-        title: "Visualização Espacial 3D",
-        subtitle: "3 critérios detectados: scatter 3D interativo com PIS/NIS",
+        title: "Visualização espacial do espaço de decisão",
+        subtitle: "Espaço 3D direto — os três eixos são os três critérios reais. Arraste para explorar ângulos diferentes.",
         data: [
           {
             type: "scatter3d",
@@ -1009,8 +1009,8 @@ export default function ResultPage() {
       const lineToNisZ = altProjections.flatMap((point) => [point[2], nisProjection[2], null]);
 
       return {
-        title: "Visualização Espacial PCA",
-        subtitle: `4-6 critérios detectados: PCA 3D interativo (variância explicada: ${explained.toFixed(2)}%)`,
+        title: "Visualização espacial do espaço de decisão",
+        subtitle: `Projeção 3D por PCA — os critérios foram comprimidos em 3 eixos preservando o máximo de separação entre as alternativas. Variância explicada: ${explained.toFixed(2)}%`,
         data: [
           {
             type: "scatter3d",
@@ -1085,8 +1085,8 @@ export default function ResultPage() {
     }
 
     return {
-        title: "Visualização Espacial em Coordenadas Paralelas",
-        subtitle: "7+ critérios detectados: parallel coordinates para alta dimensionalidade",
+        title: "Visualização espacial do espaço de decisão",
+        subtitle: "Coordenadas paralelas — cada eixo vertical é um critério, cada linha é uma alternativa.",
       data: [
         {
           type: "parcoords",
@@ -1485,8 +1485,22 @@ export default function ResultPage() {
             <div className="flex items-center gap-2">
               <ResultExplanation title="Visualização Espacial">
                 <p>
-                  Esta visualização posiciona alternativas no espaço de critérios para facilitar comparação visual de
-                  proximidade com PIS e NIS. O modo muda conforme a dimensionalidade dos critérios.
+                  Esta visualização se adapta automaticamente à quantidade de critérios do seu problema.
+                </p>
+                <p className="mt-2">
+                  Com 2 critérios, os pontos aparecem num plano 2D — simples e direto.
+                </p>
+                <p className="mt-2">
+                  Com 3 critérios, o espaço é tridimensional real: cada eixo é um critério. Arraste para rotacionar e explorar ângulos diferentes.
+                </p>
+                <p className="mt-2">
+                  Entre 4 e 6 critérios, os dados são comprimidos em 3 dimensões pela PCA — uma técnica que reorganiza os eixos para preservar o máximo de separação entre as alternativas. A porcentagem exibida indica o quanto da informação original foi mantida na projeção.
+                </p>
+                <p className="mt-2">
+                  Com 7 ou mais critérios, cada critério vira um eixo vertical e cada alternativa vira uma linha — esse formato é o único que consegue mostrar muitas dimensões sem perder legibilidade.
+                </p>
+                <p className="mt-2">
+                  Em todos os casos, as linhas azuis mostram a distância ao cenário ideal (PIS) e as linhas laranjas mostram a distância ao pior cenário (NIS). Alternativas com linhas azuis curtas e laranjas longas são as melhores posicionadas no ranking.
                 </p>
               </ResultExplanation>
               <button
