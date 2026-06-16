@@ -289,7 +289,7 @@
 // }
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -312,13 +312,64 @@ const SEED_ALTS: Alternative[] = [
   { name: "Fornecedor C", values: [1100, 9, 4] },
 ];
 
+const STORAGE_KEY = "topsis:decision-input";
+
+type StoredInput = {
+  criteria: Criterion[];
+  alternatives: Alternative[];
+  normalization: Normalization;
+};
+
+function isValidStoredInput(value: unknown): value is StoredInput {
+  if (!value || typeof value !== "object") return false;
+  const v = value as Partial<StoredInput>;
+  if (!Array.isArray(v.criteria) || v.criteria.length === 0) return false;
+  if (!Array.isArray(v.alternatives) || v.alternatives.length === 0) return false;
+  const cols = v.criteria.length;
+  return v.alternatives.every(
+    (a) => a && typeof a.name === "string" && Array.isArray(a.values) && a.values.length === cols
+  );
+}
+
 export default function DecisionPage() {
   const router = useRouter();
   const [criteria, setCriteria] = useState<Criterion[]>(SEED_CRITERIA);
   const [alternatives, setAlternatives] = useState<Alternative[]>(SEED_ALTS);
   const [normalization, setNormalization] = useState<Normalization>("vector");
+  const [hydrated, setHydrated] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- hidratação SSR-safe a partir do localStorage */
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (isValidStoredInput(parsed)) {
+          setCriteria(parsed.criteria);
+          setAlternatives(parsed.alternatives);
+          setNormalization(parsed.normalization);
+        }
+      }
+    } catch {
+      // ignora storage corrompido
+    }
+    setHydrated(true);
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      window.localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ criteria, alternatives, normalization })
+      );
+    } catch {
+      // ignora quota cheia / modo privado
+    }
+  }, [criteria, alternatives, normalization, hydrated]);
 
 const totalWeight = criteria.reduce((sum, c) => sum + (c.weight || 0), 0);
 const weightOutOfRange = totalWeight < 0.99 || totalWeight > 1.01;
